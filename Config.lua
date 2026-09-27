@@ -955,6 +955,16 @@ function BFH:InitializeConfig()
         HelpBeside(p, blightModule, "Blightfall timer",
             "Shows or hides the Blightfall timer module independently of Soul Reaper.")
 
+        local putrefyModule = Checkbox(p, "Enable Putrefy timer",
+            function() return self.db.enablePutrefyBar end,
+            function(v)
+                self.db.enablePutrefyBar = v
+                if not v and self.stage == "PUTREFY" then self:StopStage() end
+            end)
+        putrefyModule:SetPoint("TOPLEFT", 370, -365)
+        HelpBeside(p, putrefyModule, "Putrefy timer",
+            "Shows a Putrefy timer after you cast Blightfall. Casting Putrefy removes it. Works even if the Blightfall timer is hidden.")
+
         local dungeonDisable = Checkbox(p, "Disable helper in dungeons",
             function() return self.db.disableInDungeons end,
             function(v)
@@ -969,21 +979,26 @@ function BFH:InitializeConfig()
         talentStatus:SetPoint("TOPLEFT", 30, -420)
         self.talentStatusText = talentStatus
 
-        local test = Button(p, "Preview Soul Reaper", 155, 30, function()
+        local test = Button(p, "Preview Soul Reaper", 145, 30, function()
             if self:HasSoulReaper() then self:ShowPreview("SOUL") end
         end)
         test:SetPoint("TOPLEFT", 30, -465)
 
-        local test2 = Button(p, "Preview Blightfall", 155, 30, function()
+        local test2 = Button(p, "Preview Blightfall", 145, 30, function()
             if self:HasBlightfall() then self:ShowPreview("BLIGHT") end
         end)
         test2:SetPoint("LEFT", test, "RIGHT", 12, 0)
+
+        local test3 = Button(p, "Preview Putrefy", 135, 30, function()
+            if self:HasPutrefy() then self:ShowPreview("PUTREFY") end
+        end)
+        test3:SetPoint("LEFT", test2, "RIGHT", 12, 0)
 
         local stop = Button(p, "Stop Preview", 125, 30, function() self:StopStage() end)
         local previewNote = FS(p, "Preview loops continuously until you press Stop Preview.", 11, MUTED)
         previewNote:SetPoint("TOPLEFT", 30, -505)
 
-        stop:SetPoint("LEFT", test2, "RIGHT", 12, 0)
+        stop:SetPoint("LEFT", test3, "RIGHT", 12, 0)
 
         local credit = FS(p, "Created by JSAL", 11, MUTED)
         credit:SetPoint("TOPLEFT", 30, -610)
@@ -997,7 +1012,7 @@ function BFH:InitializeConfig()
         end)
         reset:SetPoint("TOPLEFT", 30, -550)
 
-        self.pages.General.controls = {c1,c2,c3,minimapHover,soulModule,blightModule,dungeonDisable}
+        self.pages.General.controls = {c1,c2,c3,minimapHover,soulModule,blightModule,putrefyModule,dungeonDisable}
     end
 
     -- Display
@@ -1197,6 +1212,13 @@ function BFH:InitializeConfig()
         s2:SetPoint("TOPLEFT", 30, -215)
         HelpBeside(p, s2, "Blightfall delay", "How long the Blightfall timer runs after the first Soul Reaper following Dark Transformation.")
 
+        local s4 = Slider(p, "Putrefy delay after Blightfall", 1, 20, 0.1,
+            function() return self.db.putrefyDelay end,
+            function(v) self.db.putrefyDelay = v end,
+            function(v) return string.format("%.1fs",v) end)
+        s4:SetPoint("TOPLEFT", 370, -215)
+        HelpBeside(p, s4, "Putrefy delay", "How long the Putrefy timer runs after you cast Blightfall. Default 10 seconds.")
+
         local s3 = Slider(p, "Spoken countdown starts at", 1, 10, 1,
             function() return self.db.countdownStart end,
             function(v) self.db.countdownStart = v end,
@@ -1239,7 +1261,7 @@ function BFH:InitializeConfig()
         )
         precision:SetPoint("TOPLEFT", 30, -575)
 
-        self.pages.Timing.controls = {s1,s2,s3,cancelAfterDT,dtGrace,precision}
+        self.pages.Timing.controls = {s1,s2,s4,s3,cancelAfterDT,dtGrace,precision}
     end
 
     -- Sound
@@ -1392,7 +1414,7 @@ function BFH:InitializeConfig()
         local c3 = ColorButton(p, "Under 4 seconds", function() return self.db.dangerColor end,
             function(v) self.db.dangerColor = v end, false)
         c3:SetPoint("TOPLEFT", 30, -180)
-        HelpBeside(p, c3, "Danger colour", "Default #FF0010. Both timers switch to this colour below 4 seconds.")
+        HelpBeside(p, c3, "Danger colour", "Default #FF0010. All timers switch to this colour below 4 seconds.")
 
         local c4 = ColorButton(p, "Bar background", function() return self.db.barBackgroundColor end,
             function(v) self.db.barBackgroundColor = v end, false)
@@ -1412,9 +1434,15 @@ function BFH:InitializeConfig()
         c7:SetPoint("TOPLEFT", 30, -345)
         HelpBeside(p, c7, "Accent colour", "Used for active tabs, sliders, checkboxes and highlights.")
 
+        local c8 = ColorButton(p, "Putrefy bar", function() return self.db.putrefyColor end,
+            function(v) self.db.putrefyColor = v end, false)
+        c8:SetPoint("TOPLEFT", 370, -345)
+        HelpBeside(p, c8, "Putrefy colour", "Default #45FF1C. Used from 4.0 seconds upward.")
+
         local reset = Button(p, "Reset Colours to Defaults", 190, 30, function()
             self.db.soulColor = {0x1C/255, 0x28/255, 0xFF/255, 1}
             self.db.blightColor = {0x9F/255, 0x1C/255, 0xFF/255, 1}
+            self.db.putrefyColor = {0x45/255, 0xFF/255, 0x1C/255, 1}
             self.db.dangerColor = {0xFF/255, 0x00/255, 0x10/255, 1}
             self.db.barBackgroundColor = {0.018, 0.018, 0.022, 1}
             self.db.menuBackgroundColor = {0.025, 0.027, 0.034, 0.985}
@@ -1426,7 +1454,7 @@ function BFH:InitializeConfig()
         end)
         reset:SetPoint("TOPLEFT", 30, -430)
 
-        self.pages.Colors.controls = {c1,c2,c3,c4,c5,c6,c7}
+        self.pages.Colors.controls = {c1,c2,c3,c4,c5,c6,c7,c8}
     end
 
     -- Profiles
@@ -1496,6 +1524,7 @@ function BFH:InitializeConfig()
         {name="Background opacity", page="Display", keywords="background opacity alpha"},
         {name="Soul Reaper delay", page="Timing", keywords="soul reaper dark transformation timer delay"},
         {name="Blightfall delay", page="Timing", keywords="blightfall soul reaper timer delay"},
+        {name="Putrefy delay", page="Timing", keywords="putrefy blightfall timer delay"},
         {name="Countdown start", page="Timing", keywords="countdown start seconds voice"},
         {name="Timer precision", page="Timing", keywords="precision decimals timer"},
         {name="Audio mode", page="Sound", keywords="tts custom voice files sound"},
@@ -1510,6 +1539,7 @@ function BFH:InitializeConfig()
         {name="Icon border thickness", page="Display", keywords="icon border thickness size colour color"},
         {name="Soul Reaper colour", page="Colors", keywords="soul reaper blue hex color colour"},
         {name="Blightfall colour", page="Colors", keywords="blightfall purple hex color colour"},
+        {name="Putrefy colour", page="Colors", keywords="putrefy green hex color colour"},
         {name="Danger colour", page="Colors", keywords="red under 4 countdown color colour"},
         {name="Bar background colour", page="Colors", keywords="bar background color colour"},
         {name="Menu background colour", page="Colors", keywords="menu ui background color colour"},
@@ -1517,6 +1547,7 @@ function BFH:InitializeConfig()
         {name="Minimap mouseover", page="General", keywords="minimap mouseover hover hidden icon"},
         {name="Soul Reaper timer module", page="General", keywords="soul reaper timer module enable disable"},
         {name="Blightfall timer module", page="General", keywords="blightfall timer module enable disable"},
+        {name="Putrefy timer module", page="General", keywords="putrefy timer module enable disable"},
         {name="Disable in dungeons", page="General", keywords="dungeon instance party disable helper"},
         {name="Profiles", page="Profiles", keywords="profile preset save load"},
     }
@@ -1663,9 +1694,11 @@ function BFH:RefreshConfig()
     if self.talentStatusText then
         local sr = self:HasSoulReaper()
         local bf = self:HasBlightfall()
+        local pu = self:HasPutrefy()
         self.talentStatusText:SetText(
             "Talent detection: Soul Reaper " .. (sr and "|cff45ff45active|r" or "|cffff4040not known|r")
             .. "   •   Blightfall " .. (bf and "|cff45ff45active|r" or "|cffff4040not known|r")
+            .. "   •   Putrefy " .. (pu and "|cff45ff45active|r" or "|cffff4040not known|r")
         )
     end
 end
@@ -1682,6 +1715,8 @@ function BFH:StartAutomaticMenuPreview()
         stage = "SOUL"
     elseif self.db.enableBlightfallBar ~= false then
         stage = "BLIGHT"
+    elseif self.db.enablePutrefyBar ~= false then
+        stage = "PUTREFY"
     else
         stage = "SOUL"
     end

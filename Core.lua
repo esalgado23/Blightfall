@@ -12,6 +12,7 @@ BFH.SPELL = {
     SOUL_REAPER = 343294,
     BLIGHTFALL = 1271967,
     BLIGHTFALL_TALENT = 1271974,
+    PUTREFY = 1247378,
 }
 
 BFH.defaults = {
@@ -27,12 +28,14 @@ BFH.defaults = {
 
     soulDelay = 7.0,
     blightDelay = 6.0,
+    putrefyDelay = 10.0,
     countdownStart = 4,
     precision = 1,
     cancelAfterDT = true,
     dtCancelGrace = 5,
     enableSoulReaperBar = true,
     enableBlightfallBar = true,
+    enablePutrefyBar = true,
     disableInDungeons = false,
 
     soundEnabled = true,
@@ -79,6 +82,7 @@ BFH.defaults = {
 
     soulColor = {0x1C/255, 0x28/255, 0xFF/255, 1},
     blightColor = {0x9F/255, 0x1C/255, 0xFF/255, 1},
+    putrefyColor = {0x45/255, 0xFF/255, 0x1C/255, 1},
     dangerColor = {0xFF/255, 0x00/255, 0x10/255, 1},
 
     menuBackgroundColor = {0.025, 0.027, 0.034, 0.985},
@@ -300,15 +304,28 @@ function BFH:HasBlightfall()
         or self:IsSpellAvailable(self.SPELL.BLIGHTFALL_TALENT)
 end
 
+function BFH:HasPutrefy()
+    return self:IsSpellAvailable(self.SPELL.PUTREFY)
+end
+
+-- True when a Putrefy timer should follow Blightfall, so the sequence must
+-- stay armed through Blightfall even if the Blightfall bar itself is hidden.
+function BFH:TracksPutrefy()
+    return self.hasPutrefy and self.db.enablePutrefyBar
+end
+
 function BFH:RefreshTalentState()
     self.hasSoulReaper = self:HasSoulReaper()
     self.hasBlightfall = self:HasBlightfall()
+    self.hasPutrefy = self:HasPutrefy()
 
     -- If talents change while a timer is active, remove a timer for a spell
     -- the player no longer knows.
     if self.stage == "SOUL" and not self.hasSoulReaper then
         self:StopStage()
     elseif self.stage == "BLIGHT" and not self.hasBlightfall then
+        self:StopStage()
+    elseif self.stage == "PUTREFY" and not self.hasPutrefy then
         self:StopStage()
     end
 
@@ -491,6 +508,7 @@ function BFH:HandleSpell(spellID)
 
     self.hasSoulReaper = self:HasSoulReaper()
     self.hasBlightfall = self:HasBlightfall()
+    self.hasPutrefy = self:HasPutrefy()
 
     if spellID == self.SPELL.DARK_TRANSFORMATION then
         self.sequenceToken = (self.sequenceToken or 0) + 1
@@ -512,7 +530,12 @@ function BFH:HandleSpell(spellID)
             if self.db.enableSoulReaperBar then self:StartStage("SOUL", self.db.soulDelay) else self:StopStage() end
         elseif self.hasBlightfall then
             self.soulUsed = true
-            if self.db.enableBlightfallBar then self:StartStage("BLIGHT", self.db.blightDelay) else self.sequenceArmed=false; self:StopStage() end
+            if self.db.enableBlightfallBar then
+                self:StartStage("BLIGHT", self.db.blightDelay)
+            else
+                self:StopStage()
+                if not self:TracksPutrefy() then self.sequenceArmed = false end
+            end
         else
             self.sequenceArmed = false
             self:StopStage()
@@ -526,7 +549,11 @@ function BFH:HandleSpell(spellID)
             self.soulUsed = true
             if self.stage == "SOUL" then self:StopStage() end
             if self.hasBlightfall and self.sequenceArmed and not self.sequenceExpired then
-                if self.db.enableBlightfallBar then self:StartStage("BLIGHT", self.db.blightDelay) else self.sequenceArmed=false end
+                if self.db.enableBlightfallBar then
+                    self:StartStage("BLIGHT", self.db.blightDelay)
+                elseif not self:TracksPutrefy() then
+                    self.sequenceArmed = false
+                end
             else self.sequenceArmed=false end
         end
         return
@@ -536,8 +563,19 @@ function BFH:HandleSpell(spellID)
         if self.sequenceArmed and self.soulUsed and not self.blightUsed and self.hasBlightfall then
             self.blightUsed = true
             if self.stage == "BLIGHT" then self:StopStage() end
+            -- Start Putrefy while the sequence is still armed; disarming
+            -- afterwards stops the Dark Transformation watcher, so the Putrefy
+            -- window is not cut short when Dark Transformation ends.
+            if self:TracksPutrefy() then
+                self:StartStage("PUTREFY", self.db.putrefyDelay)
+            end
             self.sequenceArmed = false
         end
+        return
+    end
+
+    if spellID == self.SPELL.PUTREFY then
+        if self.stage == "PUTREFY" and not self.preview then self:StopStage() end
     end
 end
 

@@ -274,6 +274,12 @@ function BFH:ApplyDisplaySettings()
     dragOverlay:SetShown(not d.locked)
 end
 
+function BFH:GetStageDuration(stage)
+    if stage == "BLIGHT" then return self.db.blightDelay end
+    if stage == "PUTREFY" then return self.db.putrefyDelay end
+    return self.db.soulDelay
+end
+
 local function SetBarColor(stage, remaining)
     if not status then return end
 
@@ -283,6 +289,8 @@ local function SetBarColor(stage, remaining)
         c = d.dangerColor or {0xFF/255, 0x00/255, 0x10/255, 1}
     elseif stage == "BLIGHT" then
         c = d.blightColor or {0x9F/255, 0x1C/255, 0xFF/255, 1}
+    elseif stage == "PUTREFY" then
+        c = d.putrefyColor or {0x45/255, 0xFF/255, 0x1C/255, 1}
     else
         c = d.soulColor or {0x1C/255, 0x28/255, 0xFF/255, 1}
     end
@@ -296,6 +304,7 @@ function BFH:StartStage(stage, duration, preview)
         if self.IsDisabledByInstance and self:IsDisabledByInstance() then return end
         if stage == "SOUL" and not self.db.enableSoulReaperBar then return end
         if stage == "BLIGHT" and not self.db.enableBlightfallBar then return end
+        if stage == "PUTREFY" and not self.db.enablePutrefyBar then return end
     end
 
     -- Combat timers must belong to a currently armed Dark Transformation
@@ -316,6 +325,8 @@ function BFH:StartStage(stage, duration, preview)
     local spellID, text
     if stage == "BLIGHT" then
         spellID, text = self.SPELL.BLIGHTFALL, "Blightfall"
+    elseif stage == "PUTREFY" then
+        spellID, text = self.SPELL.PUTREFY, "Putrefy"
     else
         spellID, text = self.SPELL.SOUL_REAPER, "Soul Reaper"
     end
@@ -351,8 +362,7 @@ function BFH:ShowPreview(stage)
     self.previewStage = stage
     self.previewAudioFirstCycle = true
 
-    local duration = stage == "BLIGHT" and self.db.blightDelay or self.db.soulDelay
-    self:StartStage(stage, duration, true)
+    self:StartStage(stage, self:GetStageDuration(stage), true)
 end
 
 function BFH:FormatRemaining(v)
@@ -373,7 +383,7 @@ function BFH:OnDisplayUpdate(elapsed)
             -- timer so users can position it and compare bar/icon styles
             -- without repeatedly clicking Preview.
             local stage = self.previewStage
-            local duration = stage == "BLIGHT" and self.db.blightDelay or self.db.soulDelay
+            local duration = self:GetStageDuration(stage)
 
             -- The first preview playback demonstrates the selected countdown
             -- audio. Repeating preview cycles are visual-only.

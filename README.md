@@ -2,11 +2,11 @@
 
 Timing helper for Unholy Death Knights in World of Warcraft (Retail).
 
-Tracks the **Dark Transformation → Soul Reaper → Blightfall** sequence and shows a countdown bar, icon or text for each stage, with optional voice countdown.
+Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** sequence and shows a countdown bar, icon or text for each stage, with optional voice countdown.
 
 ## Features
 
-- Automatic sequence: Dark Transformation starts the Soul Reaper timer, Soul Reaper starts the Blightfall timer.
+- Automatic sequence: Dark Transformation starts the Soul Reaper timer, Soul Reaper starts the Blightfall timer, Blightfall starts the Putrefy timer.
 - Talent aware: only tracks the spells you actually have talented.
 - Cancels the sequence when Dark Transformation ends (configurable grace period).
 - Bar, icon or text-only display with full font, colour, texture and border customisation (LibSharedMedia supported).

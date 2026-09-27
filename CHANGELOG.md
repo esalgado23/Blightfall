@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- New **Putrefy** timer (spell 1247378): starts after you cast Blightfall, 10 seconds by default, and is removed when you cast Putrefy.
+- Putrefy has its own on/off toggle (General), delay slider (Timing), bar colour #45FF1C (Colors), preview button and talent detection.
+- The Putrefy timer keeps running even if Dark Transformation ends, since Blightfall has already been cast.
+
 ## v1.0.0
 
 - First release as **Blightfall - The Ultimate Death Knight Experience** (formerly BlightfallHelper 2.7.5).
