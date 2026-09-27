@@ -1,0 +1,15 @@
+## Interface: 120100
+## Title: |cff9f1cffBlightfall|r - The Ultimate Death Knight Experience
+## Notes: Dark Transformation -> Soul Reaper -> Blightfall timing helper for Unholy Death Knights
+## Author: Tyh
+## Version: @project-version@
+## SavedVariables: BlightfallDB
+## OptionalDeps: LibSharedMedia-3.0
+## IconTexture: Interface\Icons\Spell_DeathKnight_ArmyOfTheDead
+## Category: Combat
+## X-License: All Rights Reserved
+
+Core.lua
+Display.lua
+Minimap.lua
+Config.lua
