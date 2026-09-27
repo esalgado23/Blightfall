@@ -392,6 +392,8 @@ function BFH:OnDisplayUpdate(elapsed)
             return
         end
 
+        -- Putrefy is the last stage; once its window runs out the sequence is over.
+        if self.stage == "PUTREFY" then self.sequenceArmed = false end
         self:StopStage()
         return
     end

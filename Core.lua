@@ -563,19 +563,22 @@ function BFH:HandleSpell(spellID)
         if self.sequenceArmed and self.soulUsed and not self.blightUsed and self.hasBlightfall then
             self.blightUsed = true
             if self.stage == "BLIGHT" then self:StopStage() end
-            -- Start Putrefy while the sequence is still armed; disarming
-            -- afterwards stops the Dark Transformation watcher, so the Putrefy
-            -- window is not cut short when Dark Transformation ends.
+            -- The sequence stays armed through Putrefy so the Dark
+            -- Transformation watcher can still cancel it when DT ends.
             if self:TracksPutrefy() then
                 self:StartStage("PUTREFY", self.db.putrefyDelay)
+            else
+                self.sequenceArmed = false
             end
-            self.sequenceArmed = false
         end
         return
     end
 
     if spellID == self.SPELL.PUTREFY then
-        if self.stage == "PUTREFY" and not self.preview then self:StopStage() end
+        if self.stage == "PUTREFY" and not self.preview then
+            self:StopStage()
+            self.sequenceArmed = false
+        end
     end
 end
 

@@ -4,7 +4,7 @@
 
 - New **Putrefy** timer (spell 1247378): starts after you cast Blightfall, 10 seconds by default, and is removed when you cast Putrefy.
 - Putrefy has its own on/off toggle (General), delay slider (Timing), bar colour #45FF1C (Colors), preview button and talent detection.
-- The Putrefy timer keeps running even if Dark Transformation ends, since Blightfall has already been cast.
+- The Putrefy timer is cancelled when Dark Transformation ends (same rule and grace period as the other timers).
 
 ## v1.0.0
 

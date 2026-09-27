@@ -1240,7 +1240,7 @@ function BFH:InitializeConfig()
             end)
         cancelAfterDT:SetPoint("TOPLEFT", 30, -395)
         HelpBeside(p, cancelAfterDT, "Cancel after Dark Transformation",
-            "Stops the current Soul Reaper/Blightfall sequence after Dark Transformation disappears from your ghoul. Once cancelled, a new sequence requires another Dark Transformation cast.")
+            "Stops the current Soul Reaper/Blightfall/Putrefy sequence after Dark Transformation disappears from your ghoul. Once cancelled, a new sequence requires another Dark Transformation cast.")
 
         local dtGrace = Slider(p, "Grace period after Dark Transformation ends", 0, 10, 1,
             function() return self.db.dtCancelGrace or 5 end,
