@@ -799,7 +799,7 @@ function BFH:InitializeConfig()
     local ver = FS(header, "v"..self.VERSION, 11, MUTED)
     ver:SetPoint("LEFT", title, "RIGHT", 10, -2)
 
-    local author = FS(header, "by Tyh", 11, {0.78, 0.38, 1})
+    local author = FS(header, "by JSAL", 11, {0.78, 0.38, 1})
     author:SetPoint("LEFT", ver, "RIGHT", 10, 0)
 
     local sub = FS(header, "Unholy DK cast timing assistant", 11, MUTED)
@@ -985,7 +985,7 @@ function BFH:InitializeConfig()
 
         stop:SetPoint("LEFT", test2, "RIGHT", 12, 0)
 
-        local credit = FS(p, "Created by Tyh", 11, MUTED)
+        local credit = FS(p, "Created by JSAL", 11, MUTED)
         credit:SetPoint("TOPLEFT", 30, -610)
 
         local reset = Button(p, "Reset Position", 145, 30, function()
