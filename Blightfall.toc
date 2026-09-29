@@ -1,6 +1,6 @@
 ## Interface: 120100
 ## Title: |cff9f1cffBlightfall|r - The Ultimate Death Knight Experience
-## Notes: Dark Transformation -> Soul Reaper -> Blightfall timing helper for Unholy Death Knights
+## Notes: Dark Transformation -> Soul Reaper -> Blightfall -> Putrefy timing helper for Unholy Death Knights
 ## Author: JSAL
 ## Version: @project-version@
 ## SavedVariables: BlightfallDB
@@ -9,6 +9,7 @@
 ## Category: Combat
 ## X-License: All Rights Reserved
 
+AnimData.lua
 Core.lua
 Display.lua
 Minimap.lua

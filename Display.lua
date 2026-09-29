@@ -1,7 +1,17 @@
 local BFH = _G.Blightfall
 if not BFH then return end
+local ns = BFH.ns
 
-local display, bg, iconFrame, iconBorderFrame, icon, status, barBorderFrame, barBG, spark, label, timer, iconTimer, dragOverlay
+local FPS = 30
+local CELL = 128
+local LOADING_FADE = 1.0
+local PUTREFY_FADE = 0.3
+local PREVIEW_IDLE_TIME = 2.0
+local PREVIEW_PUTREFY_TIME = 3.0
+
+local PREFIX = {SOUL = "reaper", BLIGHT = "blight"}
+
+local display, main, outro, textFrame, counter, label, dragOverlay
 
 local function Clamp(v, lo, hi)
     v = tonumber(v) or lo
@@ -10,73 +20,166 @@ local function Clamp(v, lo, hi)
     return v
 end
 
+---------------------------------------------------------------------------
+-- Flipbook layer: plays one animation from AnimData pages on a texture.
+---------------------------------------------------------------------------
+
+local Layer = {}
+Layer.__index = Layer
+
+local function NewLayer(parent, levelOffset)
+    local l = setmetatable({}, Layer)
+    l.frame = CreateFrame("Frame", nil, parent)
+    l.frame:SetAllPoints(parent)
+    l.frame:SetFrameLevel(parent:GetFrameLevel() + levelOffset)
+    l.frame:Hide()
+
+    l.tex = l.frame:CreateTexture(nil, "ARTWORK")
+    l.tex:SetAllPoints()
+
+    -- Additive copy of the current frame, used for the optional flash.
+    l.glow = l.frame:CreateTexture(nil, "OVERLAY")
+    l.glow:SetAllPoints()
+    l.glow:SetBlendMode("ADD")
+    l.glow:Hide()
+    return l
+end
+
+function Layer:SetFrame(i)
+    if i == self.lastFrame then return end
+    self.lastFrame = i
+
+    local data = self.data
+    local page = data.pages[math.floor(i / data.perPage) + 1]
+    local idx = i % data.perPage
+    local side = page[2]
+
+    if self.lastPath ~= page[1] then
+        -- NEAREST keeps the pixel art crisp at any scale.
+        self.tex:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
+        self.glow:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
+        self.lastPath = page[1]
+    end
+
+    local u = 1 / side
+    local col, row = idx % side, math.floor(idx / side)
+    self.tex:SetTexCoord(col * u, (col + 1) * u, row * u, (row + 1) * u)
+    self.glow:SetTexCoord(col * u, (col + 1) * u, row * u, (row + 1) * u)
+end
+
+-- opts: duration (whole animation) or fps, loop, fadeIn, delay, onDone
+function Layer:Play(key, opts)
+    local data = ns.AnimData and ns.AnimData[key]
+    if not data then
+        self:Stop()
+        return
+    end
+    opts = opts or {}
+    self.key = key
+    self.data = data
+    self.t = -(opts.delay or 0)
+    self.frameTime = opts.duration and (opts.duration / data.frames) or (1 / (opts.fps or FPS))
+    self.loop = opts.loop
+    self.fadeIn = opts.fadeIn or 0
+    self.onDone = opts.onDone
+    self.lastFrame = nil
+    self.playing = true
+    self.glow:Hide()
+    self:SetFrame(0)
+    self.frame:SetAlpha(self.t < 0 and 0 or (self.fadeIn > 0 and 0 or 1))
+    self.frame:Show()
+end
+
+function Layer:Stop()
+    self.playing = false
+    self.onDone = nil
+    self.key = nil
+    self.frame:Hide()
+end
+
+function Layer:IsPending()
+    return self.playing and self.t < 0
+end
+
+function Layer:Update(elapsed)
+    if not self.playing then return end
+    self.t = self.t + elapsed
+    if self.t < 0 then
+        self.frame:SetAlpha(0)
+        return
+    end
+
+    local frames = self.data.frames
+    local idx = math.floor(self.t / self.frameTime)
+    if idx >= frames then
+        if self.loop then
+            idx = idx % frames
+        else
+            self:SetFrame(frames - 1)
+            self.playing = false
+            local done = self.onDone
+            self.onDone = nil
+            if done then done() end
+            return
+        end
+    end
+    self:SetFrame(idx)
+    self.frame:SetAlpha(self.fadeIn > 0 and math.min(1, self.t / self.fadeIn) or 1)
+end
+
+---------------------------------------------------------------------------
+-- Display frame
+---------------------------------------------------------------------------
+
+local function ApplyFontString(fs, cfg)
+    local flags = cfg.outline or ""
+    if not fs:SetFont(cfg.font or "Fonts\\FRIZQT__.TTF", Clamp(cfg.size, 6, 64), flags) then
+        fs:SetFont("Fonts\\FRIZQT__.TTF", Clamp(cfg.size, 6, 64), flags)
+    end
+    local c = cfg.color or {1, 1, 1, 1}
+    fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+    local s = cfg.shadowColor or {0, 0, 0, 1}
+    fs:SetShadowColor(s[1], s[2], s[3], s[4] or 1)
+    if cfg.shadow then
+        fs:SetShadowOffset(1, -1)
+    else
+        fs:SetShadowOffset(0, 0)
+    end
+end
+
 function BFH:InitializeDisplay()
     display = CreateFrame("Frame", "BlightfallDisplay", UIParent)
     display:SetFrameStrata("HIGH")
     display:SetClampedToScreen(true)
     display:SetMovable(true)
-    display:Hide()
     self.display = display
 
-    bg = CreateFrame("Frame", nil, display, "BackdropTemplate")
-    bg:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
+    main = NewLayer(display, 2)
+    outro = NewLayer(display, 4)
 
-    -- Keep the spell icon on its own higher frame level so background opacity
-    -- never darkens or hides it, even at 100%.
-    iconFrame = CreateFrame("Frame", nil, display)
-    iconFrame:SetFrameLevel(display:GetFrameLevel() + 5)
+    textFrame = CreateFrame("Frame", nil, display)
+    textFrame:SetAllPoints(display)
+    textFrame:SetFrameLevel(display:GetFrameLevel() + 10)
 
-    iconBorderFrame = CreateFrame("Frame", nil, display, "BackdropTemplate")
-    iconBorderFrame:SetFrameLevel(display:GetFrameLevel() + 4)
-
-    icon = iconFrame:CreateTexture(nil, "OVERLAY")
-    icon:SetAllPoints(iconFrame)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-
-    status = CreateFrame("StatusBar", nil, display)
-    status:SetFrameLevel(display:GetFrameLevel() + 2)
-
-    barBorderFrame = CreateFrame("Frame", nil, display, "BackdropTemplate")
-    barBorderFrame:SetFrameLevel(display:GetFrameLevel() + 1)
-    status:SetStatusBarTexture(self.db and self.db.barTexture or "Interface\\TargetingFrame\\UI-StatusBar")
-
-    barBG = status:CreateTexture(nil, "BACKGROUND")
-    barBG:SetAllPoints(status)
-    barBG:SetTexture("Interface\\Buttons\\WHITE8X8")
-
-    -- Tiny marker only; this replaces the oversized glow/spark.
-    spark = status:CreateTexture(nil, "OVERLAY")
-    spark:SetTexture("Interface\\Buttons\\WHITE8X8")
-    spark:SetVertexColor(1, 1, 1, 0.40)
-    spark:SetWidth(2)
-
-    label = status:CreateFontString(nil, "OVERLAY")
-    label:SetJustifyH("LEFT")
-
-    timer = status:CreateFontString(nil, "OVERLAY")
-    timer:SetJustifyH("RIGHT")
-
-    iconTimer = display:CreateFontString(nil, "OVERLAY")
-    iconTimer:SetJustifyH("CENTER")
+    counter = textFrame:CreateFontString(nil, "OVERLAY")
+    counter:SetJustifyH("CENTER")
+    label = textFrame:CreateFontString(nil, "OVERLAY")
+    label:SetJustifyH("CENTER")
 
     dragOverlay = CreateFrame("Frame", nil, display, "BackdropTemplate")
     dragOverlay:SetAllPoints(display)
     dragOverlay:SetFrameLevel(display:GetFrameLevel() + 20)
-    dragOverlay:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2})
+    dragOverlay:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 2,
+    })
+    dragOverlay:SetBackdropColor(0.62, 0.11, 1, 0.15)
     dragOverlay:SetBackdropBorderColor(0.62, 0.11, 1, 1)
     dragOverlay:EnableMouse(true)
     dragOverlay:RegisterForDrag("LeftButton")
-    dragOverlay:SetMovable(true)
     dragOverlay:Hide()
-
-    dragOverlay:SetScript("OnDragStart", function()
-        if not BFH.db.locked then display:StartMoving() end
-    end)
-
+    dragOverlay:SetScript("OnDragStart", function() display:StartMoving() end)
     dragOverlay:SetScript("OnDragStop", function()
         display:StopMovingOrSizing()
         local p, _, rp, x, y = display:GetPoint(1)
@@ -85,355 +188,263 @@ function BFH:InitializeDisplay()
 
     display:SetScript("OnUpdate", function(_, elapsed) BFH:OnDisplayUpdate(elapsed) end)
     self:ApplyDisplaySettings()
+    self:PreloadTextures()
+end
+
+-- Touch every page once at login so the first cast in combat doesn't hitch
+-- while the client reads the textures from disk.
+function BFH:PreloadTextures()
+    if not ns.AnimData then return end
+    local holder = CreateFrame("Frame", nil, UIParent)
+    holder:SetSize(1, 1)
+    holder:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
+    holder:SetAlpha(0)
+    local size = self.db.putrefySmall and "_sml_" or "_big_"
+    for key, data in pairs(ns.AnimData) do
+        if not key:find("^putrefy") or key:find(size, 1, true) then
+            for _, page in ipairs(data.pages) do
+                local t = holder:CreateTexture(nil, "BACKGROUND")
+                t:SetSize(1, 1)
+                t:SetPoint("CENTER")
+                t:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
+            end
+        end
+    end
 end
 
 function BFH:ApplyPosition()
     if not display then return end
     display:ClearAllPoints()
-    display:SetPoint(
-        self.db.point or "CENTER",
-        UIParent,
-        self.db.relativePoint or "CENTER",
-        self.db.x or 0,
-        self.db.y or 0
-    )
+    display:SetPoint(self.db.point or "CENTER", UIParent, self.db.relativePoint or "CENTER",
+        self.db.x or 0, self.db.y or 0)
 end
 
 function BFH:ApplyDisplaySettings()
     if not display then return end
     local d = self.db
-
-    status:SetStatusBarTexture(d.barTexture or "Interface\\TargetingFrame\\UI-StatusBar")
-    if status.SetReverseFill then
-        status:SetReverseFill(d.barReverseFill and true or false)
-    end
-
-    display:SetScale(Clamp(d.scale, 0.5, 2.0))
+    local size = CELL * Clamp(d.scale, 1, 300) / 100
+    display:SetSize(size, size)
     self:ApplyPosition()
 
-    bg:ClearAllPoints()
-    iconFrame:ClearAllPoints()
-    iconBorderFrame:ClearAllPoints()
-    status:ClearAllPoints()
-    barBorderFrame:ClearAllPoints()
+    ApplyFontString(counter, d.counter)
+    counter:ClearAllPoints()
+    counter:SetPoint("CENTER", display, "CENTER", d.counter.x or 0, d.counter.y or 0)
+
+    ApplyFontString(label, d.label)
     label:ClearAllPoints()
-    timer:ClearAllPoints()
-    iconTimer:ClearAllPoints()
+    label:SetPoint("TOP", display, "BOTTOM", d.label.x or 0, d.label.y or 0)
 
-    local alpha = Clamp(d.backgroundAlpha, 0, 1)
-    local barBorderSize = Clamp(d.barBorderSize or 1, 0, 8)
-    local iconBorderSize = Clamp(d.iconBorderSize or 1, 0, 8)
-    local bbc = d.barBorderColor or {0,0,0,1}
-    local ibc = d.iconBorderColor or {0,0,0,1}
-
-    barBorderFrame:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = math.max(1, barBorderSize),
-    })
-    barBorderFrame:SetBackdropBorderColor(bbc[1], bbc[2], bbc[3], d.barBorderEnabled and (bbc[4] or 1) or 0)
-
-    iconBorderFrame:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = math.max(1, iconBorderSize),
-    })
-    iconBorderFrame:SetBackdropBorderColor(ibc[1], ibc[2], ibc[3], d.iconBorderEnabled and (ibc[4] or 1) or 0)
-
-    local bc = d.barBackgroundColor or {0.018, 0.018, 0.022, 1}
-    bg:SetBackdropColor(bc[1], bc[2], bc[3], alpha)
-    bg:SetBackdropBorderColor(0, 0, 0, d.borderEnabled and 1 or 0)
-    barBG:SetVertexColor(bc[1], bc[2], bc[3], alpha)
-
-    local font = d.font or "Fonts\\FRIZQT__.TTF"
-    if not label:SetFont(font, Clamp(d.labelFontSize, 8, 32), "OUTLINE") then
-        font = "Fonts\\FRIZQT__.TTF"
-        d.font = font
-        d.fontName = "Friz Quadrata"
-        label:SetFont(font, Clamp(d.labelFontSize, 8, 32), "OUTLINE")
-    end
-    timer:SetFont(font, Clamp(d.timerFontSize, 8, 32), "OUTLINE")
-    iconTimer:SetFont(font, Clamp(d.iconCountdownFontSize or d.timerFontSize, 8, 48), "OUTLINE")
-    local ict = d.iconCountdownColor or {1,1,1,1}
-    iconTimer:SetTextColor(ict[1], ict[2], ict[3], ict[4] or 1)
-
-    if d.displayMode == "ICON" then
-        local s = Clamp(d.iconOnlySize, 32, 128)
-        display:SetSize(s, s + 30)
-
-        bg:SetPoint("TOP", display, "TOP")
-        bg:SetSize(s, s)
-
-        iconFrame:SetPoint("TOP", display, "TOP")
-        iconFrame:SetSize(s, s)
-        iconFrame:Show()
-        icon:Show()
-
-        iconBorderFrame:SetPoint("TOPLEFT", iconFrame, "TOPLEFT", -(d.iconBorderSize or 1), (d.iconBorderSize or 1))
-        iconBorderFrame:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", (d.iconBorderSize or 1), -(d.iconBorderSize or 1))
-        iconBorderFrame:Show()
-        barBorderFrame:Hide()
-
-        status:Hide()
-        label:Hide()
-        timer:Hide()
-
-        if d.iconCountdownPosition == "CENTER" then
-            iconTimer:SetPoint("CENTER", iconFrame, "CENTER", 0, 0)
-        else
-            iconTimer:SetPoint("TOP", iconFrame, "BOTTOM", 0, -4)
-        end
-        iconTimer:Show()
-    elseif d.displayMode == "TEXT" or d.displayMode == "Text Only" then
-        -- Text-only mode: no progress bar and no spell icon.
-        iconFrame:Hide()
-        iconBorderFrame:Hide()
-        icon:Hide()
-        status:Hide()
-        barBorderFrame:Hide()
-        barBG:Hide()
-        spark:Hide()
-        iconTimer:Hide()
-
-        local tw = (d.textOnlyWidth or 220) * (d.scale or 1)
-        local th = (d.textOnlyHeight or 34) * (d.scale or 1)
-        display:SetSize(tw, th)
-
-        label:ClearAllPoints()
-        timer:ClearAllPoints()
-        label:SetPoint("LEFT", display, "LEFT", 0, 0)
-        timer:SetPoint("RIGHT", display, "RIGHT", 0, 0)
-        label:Show()
-        timer:Show()
-    else
-        local bw = Clamp(d.barWidth, 100, 500)
-        local bh = Clamp(d.barHeight, 10, 60)
-        local iw = d.showIcon and Clamp(d.iconSize, 10, 80) or 0
-
-        display:SetSize(bw + iw, math.max(bh, iw))
-        bg:SetAllPoints(display)
-
-        status:SetSize(bw, bh)
-        status:Show()
-
-        if d.showIcon then
-            iconFrame:SetSize(iw, iw)
-            iconFrame:Show()
-            icon:Show()
-
-            if d.iconPosition == "RIGHT" then
-                status:SetPoint("LEFT", display, "LEFT", 0, 0)
-                iconFrame:SetPoint("LEFT", status, "RIGHT", 0, 0)
-            else
-                iconFrame:SetPoint("LEFT", display, "LEFT", 0, 0)
-                status:SetPoint("LEFT", iconFrame, "RIGHT", 0, 0)
-            end
-
-            iconBorderFrame:SetPoint("TOPLEFT", iconFrame, "TOPLEFT", -(d.iconBorderSize or 1), (d.iconBorderSize or 1))
-            iconBorderFrame:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", (d.iconBorderSize or 1), -(d.iconBorderSize or 1))
-            iconBorderFrame:Show()
-        else
-            iconFrame:Hide()
-            iconBorderFrame:Hide()
-            status:SetPoint("LEFT", display, "LEFT", 0, 0)
-        end
-
-        barBorderFrame:SetPoint("TOPLEFT", status, "TOPLEFT", -(d.barBorderSize or 1), (d.barBorderSize or 1))
-        barBorderFrame:SetPoint("BOTTOMRIGHT", status, "BOTTOMRIGHT", (d.barBorderSize or 1), -(d.barBorderSize or 1))
-        barBorderFrame:Show()
-
-        if d.showBarText then
-            local pos = d.barTextPosition or "LEFT"
-
-            if pos == "CENTER" then
-                label:SetPoint("CENTER", status, "CENTER", 0, 0)
-                label:SetJustifyH("CENTER")
-                timer:Hide()
-            elseif pos == "RIGHT" then
-                label:SetPoint("RIGHT", status, "RIGHT", -6, 0)
-                label:SetJustifyH("RIGHT")
-                timer:SetPoint("LEFT", status, "LEFT", 6, 0)
-                timer:SetJustifyH("LEFT")
-                timer:Show()
-            else
-                label:SetPoint("LEFT", status, "LEFT", 6, 0)
-                label:SetJustifyH("LEFT")
-                timer:SetPoint("RIGHT", status, "RIGHT", -6, 0)
-                timer:SetJustifyH("RIGHT")
-                timer:Show()
-            end
-
-            label:Show()
-        else
-            label:Hide()
-            timer:Hide()
-        end
-
-        iconTimer:Hide()
-    end
-
-    spark:SetShown(d.showSpark and d.displayMode == "BAR")
     dragOverlay:SetShown(not d.locked)
+    self:UpdateTexts()
 end
+
+function BFH:SetLocked(locked)
+    self.db.locked = locked and true or false
+    if not locked and not self.stage then
+        self:StartPreview("SOUL")
+    end
+    self:ApplyDisplaySettings()
+    if self.RefreshConfig then self:RefreshConfig() end
+end
+
+---------------------------------------------------------------------------
+-- Stage control
+---------------------------------------------------------------------------
 
 function BFH:GetStageDuration(stage)
-    if stage == "BLIGHT" then return self.db.blightDelay end
-    if stage == "PUTREFY" then return self.db.putrefyDelay end
-    return self.db.soulDelay
+    local limits = self.LIMITS[stage]
+    local v = stage == "BLIGHT" and self.db.blightDelay or self.db.soulDelay
+    return Clamp(v, limits[1], limits[2])
 end
 
-local function SetBarColor(stage, remaining)
-    if not status then return end
-
-    local d = BFH.db
-    local c
-    if remaining < 4 then
-        c = d.dangerColor or {0xFF/255, 0x00/255, 0x10/255, 1}
-    elseif stage == "BLIGHT" then
-        c = d.blightColor or {0x9F/255, 0x1C/255, 0xFF/255, 1}
-    elseif stage == "PUTREFY" then
-        c = d.putrefyColor or {0x45/255, 0xFF/255, 0x1C/255, 1}
-    else
-        c = d.soulColor or {0x1C/255, 0x28/255, 0xFF/255, 1}
-    end
-
-    status:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+local function AudioAllowed()
+    return not BFH.preview or BFH.previewCycle == 1
 end
 
-function BFH:StartStage(stage, duration, preview)
-    if not self.db.enabled and not preview then return end
-    if not preview then
-        if self.IsDisabledByInstance and self:IsDisabledByInstance() then return end
-        if stage == "SOUL" and not self.db.enableSoulReaperBar then return end
-        if stage == "BLIGHT" and not self.db.enableBlightfallBar then return end
-        if stage == "PUTREFY" and not self.db.enablePutrefyBar then return end
-    end
-
-    -- Combat timers must belong to a currently armed Dark Transformation
-    -- sequence. Preview mode is exempt.
-    if not preview and (not self.sequenceArmed or self.sequenceExpired) then
-        return
-    end
-
+function BFH:ShowStage(stage)
     self.stage = stage
-    self.preview = preview and true or false
-    self.previewStage = self.preview and stage or nil
-    self.stageDuration = Clamp(duration or 7, 0.5, 20)
-    self.startTime = GetTime()
-    self.endTime = self.startTime + self.stageDuration
+    self.phase = "LOADING"
+    local duration = self:GetStageDuration(stage)
+    self.stageEnd = GetTime() + duration
     self.lastSpoken = nil
-    self.visualRemaining = self.stageDuration
+    main:Play(PREFIX[stage] .. "_loading", {
+        duration = duration,
+        fadeIn = LOADING_FADE,
+        onDone = function() BFH:EnterReady() end,
+    })
+    self:UpdateTexts()
+end
 
-    local spellID, text
-    if stage == "BLIGHT" then
-        spellID, text = self.SPELL.BLIGHTFALL, "Blightfall"
-    elseif stage == "PUTREFY" then
-        spellID, text = self.SPELL.PUTREFY, "Putrefy"
+function BFH:EnterReady()
+    local stage = self.stage
+    if not PREFIX[stage] then return end
+    self.phase = "READY"
+    if AudioAllowed() then self:PlayReadySound(stage) end
+    main:Play(PREFIX[stage] .. "_ready", {fps = FPS, onDone = function() BFH:EnterIdle() end})
+    self:UpdateTexts()
+end
+
+function BFH:EnterIdle()
+    local stage = self.stage
+    if not PREFIX[stage] then return end
+    self.phase = "IDLE"
+    main:Play(PREFIX[stage] .. "_idle", {fps = FPS, loop = true})
+    if self.preview then self.previewNext = GetTime() + PREVIEW_IDLE_TIME end
+    self:UpdateTexts()
+end
+
+-- Jump straight to Idle (used for Blightfall when DT ends mid-loading).
+function BFH:ForceIdle()
+    if self.phase ~= "IDLE" then self:EnterIdle() end
+end
+
+function BFH:GetPutrefyKey(variant)
+    return "putrefy_" .. variant .. (self.db.putrefySmall and "_sml" or "_big")
+end
+
+function BFH:ShowPutrefy(delay)
+    local variants = ns.PutrefyVariants or {"uhly"}
+    self.putrefyVariant = variants[math.random(#variants)]
+    self.stage = "PUTREFY"
+    self.phase = "IDLE"
+    main:Play(self:GetPutrefyKey(self.putrefyVariant) .. "_idle", {
+        fps = FPS,
+        loop = true,
+        fadeIn = PUTREFY_FADE,
+        delay = delay,
+    })
+    self:UpdateTexts()
+end
+
+function BFH:IsPutrefyPending()
+    return self.stage == "PUTREFY" and main and main:IsPending()
+end
+
+function BFH:PlayOnUse(stage)
+    local key
+    if stage == "PUTREFY" then
+        key = self:GetPutrefyKey(self.putrefyVariant or "uhly") .. "_onuse"
     else
-        spellID, text = self.SPELL.SOUL_REAPER, "Soul Reaper"
+        key = PREFIX[stage] .. "_onuse"
     end
-
-    icon:SetTexture(self:GetSpellTexture(spellID))
-    label:SetText(text)
-    status:SetMinMaxValues(0, self.stageDuration)
-    status:SetValue(self.stageDuration)
-
-    self:ApplyDisplaySettings()
-    SetBarColor(stage, self.stageDuration)
-    display:Show()
+    outro:Play(key, {fps = FPS, onDone = function() outro:Stop() end})
 end
 
-function BFH:StopStage(preservePreviewLoop)
+function BFH:ClearMain()
     self:StopTTS()
-
-    if not preservePreviewLoop then
-        self.preview = nil
-        self.previewStage = nil
-        self.previewAudioFirstCycle = nil
-    end
-
     self.stage = nil
+    self.phase = nil
     self.lastSpoken = nil
-
-    if display then display:Hide() end
+    if main then main:Stop() end
+    self:UpdateTexts()
 end
 
-function BFH:ShowPreview(stage)
-    stage = stage or "SOUL"
-    self.preview = true
-    self.previewStage = stage
-    self.previewAudioFirstCycle = true
-
-    self:StartStage(stage, self:GetStageDuration(stage), true)
+function BFH:ClearAll()
+    self:ClearMain()
+    if outro then outro:Stop() end
 end
+
+---------------------------------------------------------------------------
+-- Preview (loops until stopped)
+---------------------------------------------------------------------------
+
+function BFH:StartPreview(stage)
+    if not display then return end
+    self:ClearAll()
+    self.preview = stage
+    self.previewCycle = 1
+    self.previewNext = nil
+    if stage == "PUTREFY" then
+        self:ShowPutrefy(0)
+        self.previewNext = GetTime() + PREVIEW_PUTREFY_TIME
+    else
+        self:ShowStage(stage)
+    end
+end
+
+function BFH:StopPreview()
+    if not self.preview then return end
+    self.preview = nil
+    self.previewNext = nil
+    self:ClearAll()
+end
+
+local function AdvancePreview()
+    local stage = BFH.preview
+    BFH.previewNext = nil
+    BFH.previewCycle = (BFH.previewCycle or 1) + 1
+    BFH:PlayOnUse(stage)
+    if stage == "PUTREFY" then
+        BFH:ShowPutrefy(0.5)
+        BFH.previewNext = GetTime() + 0.5 + PREVIEW_PUTREFY_TIME
+    else
+        BFH:ShowStage(stage)
+    end
+end
+
+---------------------------------------------------------------------------
+-- Per-frame update
+---------------------------------------------------------------------------
 
 function BFH:FormatRemaining(v)
     v = math.max(v, 0)
-    local p = tonumber(self.db.precision) or 1
+    local p = tonumber(self.db.counter.precision) or 1
     if p <= 0 then return tostring(math.ceil(v)) end
     if p == 1 then return string.format("%.1f", v) end
     return string.format("%.2f", v)
 end
 
+function BFH:UpdateTexts()
+    if not counter then return end
+    local d = self.db
+    local loading = self.phase == "LOADING"
+
+    counter:SetShown(loading and d.counter.show)
+
+    local showLabel = self.stage and d.label.show and not self:IsPutrefyPending()
+    if showLabel then
+        label:SetText(d.names[self.stage] or self.DEFAULT_NAMES[self.stage] or "")
+    end
+    label:SetShown(showLabel and true or false)
+
+    if not loading then main.glow:Hide() end
+end
+
 function BFH:OnDisplayUpdate(elapsed)
-    if not self.stage or not self.endTime then return end
+    main:Update(elapsed)
+    outro:Update(elapsed)
 
-    local remaining = self.endTime - GetTime()
-    if remaining <= 0 then
-        if self.preview and self.previewStage then
-            -- Preview mode is intentionally endless: restart the same visual
-            -- timer so users can position it and compare bar/icon styles
-            -- without repeatedly clicking Preview.
-            local stage = self.previewStage
-            local duration = self:GetStageDuration(stage)
-
-            -- The first preview playback demonstrates the selected countdown
-            -- audio. Repeating preview cycles are visual-only.
-            self.previewAudioFirstCycle = false
-            self:StartStage(stage, duration, true)
-            return
-        end
-
-        -- Putrefy is the last stage; once its window runs out the sequence is over.
-        if self.stage == "PUTREFY" then self.sequenceArmed = false end
-        self:StopStage()
-        return
+    if self.preview and self.previewNext and GetTime() >= self.previewNext then
+        AdvancePreview()
     end
 
-    if self.db.barSmooth then
-        local current = self.visualRemaining or remaining
-        current = current + (remaining - current) * math.min(1, (elapsed or 0.016) * 14)
-        self.visualRemaining = current
-        status:SetValue(current)
+    if self.stage == "PUTREFY" and main.playing and not main:IsPending() and not label:IsShown() and self.db.label.show then
+        self:UpdateTexts()
+    end
+
+    if self.phase ~= "LOADING" then return end
+    local remaining = self.stageEnd - GetTime()
+    counter:SetText(self:FormatRemaining(remaining))
+
+    -- Optional flash (placeholder effect until the designed one arrives).
+    if self.db.flashEnabled and remaining <= (tonumber(self.db.flashAt) or 4) then
+        local pulse = 0.5 + 0.5 * math.sin(GetTime() * math.pi * 6)
+        main.glow:SetAlpha(0.55 * pulse)
+        main.glow:Show()
     else
-        self.visualRemaining = remaining
-        status:SetValue(remaining)
-    end
-
-    local text = self:FormatRemaining(remaining)
-    timer:SetText(text)
-    iconTimer:SetText(text)
-    SetBarColor(self.stage, remaining)
-
-    if self.db.showSpark and self.db.displayMode == "BAR" and status:IsShown() then
-        local fraction = math.max(0, math.min(1, remaining / self.stageDuration))
-        spark:ClearAllPoints()
-        spark:SetPoint("CENTER", status, "LEFT", status:GetWidth() * fraction, 0)
-        spark:SetHeight(math.max(4, status:GetHeight() - 6))
+        main.glow:Hide()
     end
 
     local maxCount = math.min(10, math.floor(self.db.countdownStart or 4))
     local spoken
-
     for n = 1, maxCount do
         if remaining <= n then
             spoken = n
             break
         end
     end
-
     if spoken and self.lastSpoken ~= spoken then
         self.lastSpoken = spoken
-        if not self.preview or self.previewAudioFirstCycle then
-            self:PlayCountdown(spoken)
-        end
+        if AudioAllowed() then self:PlayCountdown(spoken) end
     end
 end

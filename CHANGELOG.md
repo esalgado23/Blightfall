@@ -2,9 +2,20 @@
 
 ## Unreleased
 
-- New **Putrefy** timer (spell 1247378): starts after you cast Blightfall, 10 seconds by default, and is removed when you cast Putrefy.
-- Putrefy has its own on/off toggle (General), delay slider (Timing), bar colour #45FF1C (Colors), preview button and talent detection.
-- The Putrefy timer is cancelled when Dark Transformation ends (same rule and grace period as the other timers).
+### Animation redesign
+- The progress bar is replaced by pixel-art animations. Soul Reaper and Blightfall play **Loading** (stretched to the timer, 1s fade-in) -> **Ready** (once) -> **Idle** (loops until cast) -> **OnUse** (0.5s, when cast).
+- **Putrefy** appears 0.5s after Blightfall with a 0.3s fade-in, using one of 6 random card designs, and plays that card's OnUse when cast or when Dark Transformation ends. Optional small cards.
+- Dark Transformation ending now acts immediately (no grace period): Soul Reaper is removed, Blightfall jumps to Idle and stays until cast, Putrefy is only shown while Dark Transformation is up.
+- New defaults: Soul Reaper 9s (1-15s), Blightfall 6.2s (1-8s). Putrefy has no timer.
+- Optional flash when N seconds of loading remain (placeholder effect).
+- Ready sound per spell with presets (placeholder sounds), alongside the spoken countdown.
+
+### Settings
+- New Blizzard-style window with two tabs (General, Style) and scrolling; opened with `/bf` or the minimap button.
+- Style: animation size 1-300% with 1x/2x/3x shortcuts; countdown text and spell name each with font, size, outline, colour, shadow and X/Y offset; editable spell names.
+- Bundled fonts: Oldbitz and DTM Mono.
+- Removed: progress bar options, colours, profiles, fonts tab, dungeon toggle, enable toggle and grace period.
+- Settings from earlier builds are reset.
 
 ## v1.0.0
 

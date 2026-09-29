@@ -18,4 +18,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Animation textures are generated from art/src, not committed.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install Pillow && python tools/build_anims.py
+
       - uses: BigWigsMods/packager@v2

@@ -1,1763 +1,671 @@
 local BFH = _G.Blightfall
 if not BFH then return end
 
-local ACCENT = {0.62, 0.11, 1}
-local BG = {0.025, 0.027, 0.034, 0.985}
-local PANEL = {0.052, 0.055, 0.066, 0.98}
+local WIDTH, HEIGHT = 780, 560
+local CONTENT_WIDTH = WIDTH - 70
+local COL2 = 370
 
-local function SyncTheme()
-    if BFH.db then
-        local a = BFH.db.menuAccentColor or ACCENT
-        ACCENT[1], ACCENT[2], ACCENT[3] = a[1], a[2], a[3]
-        local b = BFH.db.menuBackgroundColor or BG
-        BG[1], BG[2], BG[3], BG[4] = b[1], b[2], b[3], b[4] or 1
-        local p = BFH.db.menuPanelColor or PANEL
-        PANEL[1], PANEL[2], PANEL[3], PANEL[4] = p[1], p[2], p[3], p[4] or 1
-    end
-end
-local MUTED = {0.58, 0.61, 0.69}
-local WHITE = {0.94, 0.95, 0.98}
+local controls = {}
 
-local function Backdrop(frame, color)
-    frame:SetBackdrop({
-        bgFile="Interface\\Buttons\\WHITE8X8",
-        edgeFile="Interface\\Buttons\\WHITE8X8",
-        edgeSize=1
-    })
-    frame:SetBackdropColor(unpack(color or PANEL))
-    frame:SetBackdropBorderColor(0.15, 0.16, 0.19, 1)
+local function Track(control)
+    controls[#controls + 1] = control
+    return control
 end
 
-local function FS(parent, text, size, color)
-    local f = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    local fontPath = (BFH.db and BFH.db.font) or "Fonts\\FRIZQT__.TTF"
-    if not f:SetFont(fontPath, size or 12, "") then
-        f:SetFont("Fonts\\FRIZQT__.TTF", size or 12, "")
-    end
-    BFH.configFontStrings = BFH.configFontStrings or {}
-    table.insert(BFH.configFontStrings, {obj=f, size=size or 12})
-    f:SetText(text or "")
-    if color then f:SetTextColor(unpack(color)) end
-    return f
+local function Changed()
+    BFH:ApplyDisplaySettings()
+    BFH:RefreshConfig()
 end
 
-local function AddTooltip(widget, title, body)
-    widget:EnableMouse(true)
-    widget:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(title, 1, 1, 1)
-        GameTooltip:AddLine(body, 0.82, 0.84, 0.90, true)
-        GameTooltip:Show()
+---------------------------------------------------------------------------
+-- Layout: each page is a scroll child with a running y cursor.
+---------------------------------------------------------------------------
+
+local function Advance(page, h)
+    page.y = page.y - h
+end
+
+local function At(page, widget, x, yOffset)
+    widget:SetPoint("TOPLEFT", page, "TOPLEFT", x or 16, page.y + (yOffset or 0))
+end
+
+local function Header(page, text)
+    Advance(page, 8)
+    local fs = page:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    fs:SetText(text)
+    At(page, fs)
+    local line = page:CreateTexture(nil, "ARTWORK")
+    line:SetColorTexture(1, 0.82, 0, 0.25)
+    line:SetHeight(1)
+    line:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
+    line:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+    Advance(page, 32)
+    return fs
+end
+
+local function Note(page, text, x, width)
+    local fs = page:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    fs:SetJustifyH("LEFT")
+    fs:SetWidth(width or (CONTENT_WIDTH - 40))
+    fs:SetText(text)
+    At(page, fs, x)
+    return fs
+end
+
+---------------------------------------------------------------------------
+-- Widgets (Blizzard templates)
+---------------------------------------------------------------------------
+
+local function Checkbox(parent, text, getter, setter)
+    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    cb:SetSize(26, 26)
+    local fs = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    fs:SetPoint("LEFT", cb, "RIGHT", 4, 1)
+    fs:SetText(text)
+    cb.label = fs
+    cb:SetScript("OnClick", function(self)
+        setter(self:GetChecked() and true or false)
+        Changed()
     end)
-    widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    cb.Refresh = function(self) self:SetChecked(getter() and true or false) end
+    return Track(cb)
 end
 
-local function HelpIcon(parent, x, y, title, body)
-    local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    b:SetSize(18, 18)
-    b:SetPoint("TOPLEFT", x, y)
-    b:SetBackdrop({
-        bgFile="Interface\\Buttons\\WHITE8X8",
-        edgeFile="Interface\\Buttons\\WHITE8X8",
-        edgeSize=1
-    })
-    b:SetBackdropColor(0.10,0.105,0.12,1)
-    b:SetBackdropBorderColor(0.25,0.26,0.30,1)
-    local t = FS(b, "?", 12, {0.82,0.84,0.90})
-    t:SetPoint("CENTER")
-    AddTooltip(b, title, body)
-    return b
+local function Round(v, step)
+    return math.floor(v / step + 0.5) * step
 end
 
-local function HelpBeside(parent, control, title, body, xOffset, yOffset)
-    local b = HelpIcon(parent, 0, 0, title, body)
-    b:ClearAllPoints()
-
-    local target = control
-    if control and control.text then
-        target = control.text
-    end
-
-    if target then
-        b:SetPoint("LEFT", target, "RIGHT", xOffset or 8, yOffset or 0)
-    else
-        b:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    end
-
-    return b
-end
-
-
-local function AccentCloseButton(parent, onClick, size)
-    local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    b:SetSize(size or 36, size or 36)
-    Backdrop(b, {0.075,0.078,0.092,1})
-
-    local x = b:CreateFontString(nil, "OVERLAY")
-    x:SetFont("Fonts\\FRIZQT__.TTF", math.floor((size or 36) * 0.48), "OUTLINE")
-    x:SetText("X")
-    x:SetPoint("CENTER", 0, 0)
-    b.closeText = x
-
-    local function ApplyAccent()
-        local c = BFH.db and BFH.db.menuAccentColor or {0.62,0.11,1,1}
-        local r,g,bl,a = c[1] or 0.62, c[2] or 0.11, c[3] or 1, c[4] or 1
-        x:SetTextColor(r,g,bl,a)
-        b:SetBackdropBorderColor(r,g,bl,0.85)
-    end
-    b.UpdateAccent = ApplyAccent
-    ApplyAccent()
-
-    b:SetScript("OnClick", onClick)
-    b:SetScript("OnEnter", function(self)
-        self.closeText:SetTextColor(1,1,1,1)
-    end)
-    b:SetScript("OnLeave", function(self)
-        self:UpdateAccent()
-    end)
-
-    BFH.closeButtons = BFH.closeButtons or {}
-    table.insert(BFH.closeButtons, b)
-    return b
-end
-
-local function Button(parent, text, w, h, onClick)
-    local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    b:SetSize(w or 120, h or 28)
-    Backdrop(b, {0.075,0.078,0.092,1})
-    local t = FS(b, text, 12, WHITE)
-    t:SetPoint("CENTER")
-    b.label = t
-    b:SetScript("OnClick", onClick)
-    b:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(unpack(ACCENT)) end)
-    b:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.15,0.16,0.19,1) end)
-    return b
-end
-
-local function Checkbox(parent, label, getter, setter)
-    local b = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
-    b:SetSize(20, 20)
-    b:SetBackdrop({
-        bgFile="Interface\\Buttons\\WHITE8X8",
-        edgeFile="Interface\\Buttons\\WHITE8X8",
-        edgeSize=1
-    })
-    b:SetBackdropColor(0.05,0.055,0.065,1)
-    b:SetBackdropBorderColor(0.3,0.31,0.35,1)
-
-    local mark = b:CreateTexture(nil, "ARTWORK")
-    mark:SetPoint("CENTER")
-    mark:SetSize(12,12)
-    mark:SetColorTexture(unpack(ACCENT))
-    b.mark = mark
-
-    local txt = FS(parent, label, 12, {0.9,0.91,0.94})
-    txt:SetPoint("LEFT", b, "RIGHT", 10, 0)
-    b.text = txt
-
-    function b:Refresh()
-        mark:SetShown(getter())
-    end
-
-    b:SetScript("OnClick", function()
-        setter(not getter())
-        b:Refresh()
-        BFH:RefreshConfig()
-    end)
-
-    return b
-end
-
-local function Slider(parent, label, minv, maxv, step, getter, setter, format)
-    local wrap = CreateFrame("Frame", nil, parent)
-    wrap:SetSize(300, 50)
-
-    local l = FS(wrap, label, 11, {0.73,0.76,0.82})
-    l:SetPoint("TOPLEFT", 0, 0)
-
-    local val = FS(wrap, "", 11, {0.78,0.38,1})
-    val:SetPoint("TOPRIGHT", 0, 0)
-
-    local s = CreateFrame("Slider", nil, wrap, "BackdropTemplate")
-    s:SetPoint("TOPLEFT", 0, -21)
-    s:SetPoint("TOPRIGHT", 0, -21)
-    s:SetHeight(12)
-    s:SetOrientation("HORIZONTAL")
-    s:SetMinMaxValues(minv,maxv)
-    s:SetValueStep(step)
-    s:SetObeyStepOnDrag(true)
-    s:SetBackdrop({
-        bgFile="Interface\\Buttons\\WHITE8X8",
-        edgeFile="Interface\\Buttons\\WHITE8X8",
-        edgeSize=1
-    })
-    s:SetBackdropColor(0.04,0.045,0.055,1)
-    s:SetBackdropBorderColor(0.22,0.23,0.27,1)
-
-    local thumb = s:CreateTexture(nil, "OVERLAY")
-    thumb:SetColorTexture(unpack(ACCENT))
-    thumb:SetSize(10,22)
-    s:SetThumbTexture(thumb)
-
-    local changing
-
-    function wrap:Refresh()
-        changing = true
-        local v = getter()
-        s:SetValue(v)
-        val:SetText(format and format(v) or tostring(v))
-        changing = false
-    end
-
-    s:SetScript("OnValueChanged", function(_, v)
-        if changing then return end
-        v = math.floor((v / step) + 0.5) * step
-        setter(v)
-        val:SetText(format and format(v) or tostring(v))
-        BFH:ApplyDisplaySettings()
-    end)
-
-    return wrap
-end
-
-local function Dropdown(parent, label, options, getter, setter, onChange)
-    local wrap = CreateFrame("Frame", nil, parent)
-    wrap:SetSize(300, 54)
-
-    local l = FS(wrap, label, 11, {0.73,0.76,0.82})
-    l:SetPoint("TOPLEFT", 0, 0)
-
-    local b = Button(wrap, "", 300, 28, nil)
-    b:SetPoint("TOPLEFT", 0, -19)
-
-    b:SetScript("OnClick", function(self)
-        MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
-            for _, opt in ipairs(options) do
-                rootDescription:CreateRadio(
-                    opt.text,
-                    function() return getter() == opt.value end,
-                    function()
-                        setter(opt.value)
-                        wrap:Refresh()
-                        BFH:ApplyDisplaySettings()
-                        if onChange then onChange(opt.value) end
-                        BFH:RefreshConfig()
-                    end
-                )
-            end
-        end)
-    end)
-
-    function wrap:Refresh()
-        local v = getter()
-        local text = tostring(v)
-        for _, opt in ipairs(options) do
-            if opt.value == v then text = opt.text break end
-        end
-        b.label:SetText(text)
-    end
-
-    return wrap
-end
-
-local function PageTitle(page, titleText, desc)
-    local t = FS(page, titleText, 22, WHITE)
-    t:SetPoint("TOPLEFT", 28, -28)
-
-    local d = FS(page, desc, 11, MUTED)
-    d:SetPoint("TOPLEFT", 30, -58)
-end
-
-local function MakeScrollablePage(parent)
-    local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 0, 0)
-    scroll:SetPoint("BOTTOMRIGHT", -28, 8)
-
-    local child = CreateFrame("Frame", nil, scroll)
-    child:SetSize(700, 1160)
-    scroll:SetScrollChild(child)
-
-    scroll:SetScript("OnSizeChanged", function(_, width)
-        child:SetWidth(math.max(640, width - 32))
-    end)
-
-    return child
-end
-
--- Font discovery: WoW defaults + LibSharedMedia + optional local copies.
-BFH.localFontCandidates = {
-    {"Arial Bold", "Interface\\AddOns\\Blightfall\\Fonts\\Arial Bold.ttf"},
-    {"Arial Narrow", "Interface\\AddOns\\Blightfall\\Fonts\\Arial Narrow.ttf"},
-    {"Avant Garde Naowh", "Interface\\AddOns\\Blightfall\\Fonts\\Avant Garde Naowh.ttf"},
-    {"Barlow Condensed", "Interface\\AddOns\\Blightfall\\Fonts\\Barlow Condensed.ttf"},
-    {"Changa", "Interface\\AddOns\\Blightfall\\Fonts\\Changa.ttf"},
-    {"Cinzel Decorative", "Interface\\AddOns\\Blightfall\\Fonts\\Cinzel Decorative.ttf"},
-    {"Exo", "Interface\\AddOns\\Blightfall\\Fonts\\Exo.otf"},
-    {"Expressway Bold", "Interface\\AddOns\\Blightfall\\Fonts\\Expressway Bold.ttf"},
-    {"Expressway", "Interface\\AddOns\\Blightfall\\Fonts\\Expressway.ttf"},
-    {"FiraSans Bold", "Interface\\AddOns\\Blightfall\\Fonts\\FiraSans Bold.ttf"},
-    {"FiraSans Light", "Interface\\AddOns\\Blightfall\\Fonts\\FiraSans Light.ttf"},
-    {"FiraSans Medium", "Interface\\AddOns\\Blightfall\\Fonts\\FiraSans Medium.ttf"},
-    {"Future X Black", "Interface\\AddOns\\Blightfall\\Fonts\\Future X Black.otf"},
-    {"Gotham Narrow Ultra", "Interface\\AddOns\\Blightfall\\Fonts\\Gotham Narrow Ultra.ttf"},
-    {"Gotham Narrow", "Interface\\AddOns\\Blightfall\\Fonts\\Gotham Narrow.otf"},
-    {"Homespun", "Interface\\AddOns\\Blightfall\\Fonts\\Homespun.ttf"},
-    {"KMT Kimberley", "Interface\\AddOns\\Blightfall\\Fonts\\KMT Kimberley.otf"},
-    {"KMT Ninja Naruto", "Interface\\AddOns\\Blightfall\\Fonts\\KMT Ninja Naruto.ttf"},
-    {"Poppins", "Interface\\AddOns\\Blightfall\\Fonts\\Poppins.ttf"},
-    {"Russo One", "Interface\\AddOns\\Blightfall\\Fonts\\Russo One.ttf"},
-    {"Ubuntu", "Interface\\AddOns\\Blightfall\\Fonts\\Ubuntu.ttf"},
-}
-
-function BFH:GetAvailableFonts()
-    local result = {}
-    local seenNames = {}
-
-    local function Add(name, path)
-        if type(name) ~= "string" or type(path) ~= "string" then return end
-        if seenNames[name] then return end
-        seenNames[name] = true
-        result[#result + 1] = {name = name, path = path}
-    end
-
-    -- These are always available in WoW.
-    Add("Friz Quadrata", "Fonts\\FRIZQT__.TTF")
-    Add("Arial Narrow", "Fonts\\ARIALN.TTF")
-    Add("Morpheus", "Fonts\\MORPHEUS.TTF")
-    Add("Skurri", "Fonts\\SKURRI.TTF")
-
-    -- Pull in LibSharedMedia fonts if another addon (such as WeakAuras) has loaded it.
-    local libStub = _G.LibStub
-    if libStub and type(libStub.GetLibrary) == "function" then
-        local ok, lsm = pcall(libStub.GetLibrary, libStub, "LibSharedMedia-3.0", true)
-        if ok and lsm and type(lsm.HashTable) == "function" then
-            local okFonts, fonts = pcall(lsm.HashTable, lsm, "font")
-            if okFonts and type(fonts) == "table" then
-                for name, path in pairs(fonts) do
-                    Add(name, path)
-                end
-            end
-        end
-    end
-
-    table.sort(result, function(a, b)
-        return a.name:lower() < b.name:lower()
-    end)
-
-    return result
-end
-
-function BFH:OpenFontPicker(anchor)
-    -- Rebuild the popup every time. This avoids a broken/half-created popup
-    -- getting stuck after a Lua error or being closed.
-    if self.fontPicker then
-        self.fontPicker:Hide()
-        self.fontPicker:SetParent(nil)
-        self.fontPicker = nil
-    end
-
-    local p = CreateFrame("Frame", "BlightfallFontPicker", UIParent, "BackdropTemplate")
-    p:SetSize(430, 520)
-    p:SetFrameStrata("FULLSCREEN_DIALOG")
-    p:SetClampedToScreen(true)
-    p:EnableMouse(true)
-    p:SetMovable(true)
-    Backdrop(p, {0.025,0.027,0.034,0.995})
-    self.fontPicker = p
-
-    local title = FS(p, "Choose Font", 17, WHITE)
-    title:SetPoint("TOPLEFT", 18, -16)
-
-    local close = AccentCloseButton(p, function()
-        p:Hide()
-    end, 36)
-    close:SetPoint("TOPRIGHT", -12, -12)
-
-    local search = CreateFrame("EditBox", nil, p, "BackdropTemplate")
-    search:SetSize(380, 30)
-    search:SetPoint("TOPLEFT", 18, -54)
-    Backdrop(search, {0.04,0.043,0.052,1})
-    search:SetFont(self.db.font or "Fonts\\FRIZQT__.TTF", 12, "")
-    table.insert(self.configEditBoxes, search)
-    search:SetTextInsets(10,8,0,0)
-    search:SetAutoFocus(false)
-
-    local placeholder = FS(search, "Search fonts...", 11, MUTED)
-    placeholder:SetPoint("LEFT", 10, 0)
-
-    local scroll = CreateFrame("ScrollFrame", nil, p, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 18, -96)
-    scroll:SetPoint("BOTTOMRIGHT", -42, 18)
-
-    local child = CreateFrame("Frame", nil, scroll)
-    child:SetWidth(365)
-    child:SetHeight(1)
-    scroll:SetScrollChild(child)
-
-    local rows = {}
-
-    local function BuildRows()
-        local q = (search:GetText() or ""):lower()
-        placeholder:SetShown(q == "")
-
-        local fonts = BFH:GetAvailableFonts()
-        local matches = {}
-
-        for _, font in ipairs(fonts) do
-            if q == "" or font.name:lower():find(q, 1, true) then
-                matches[#matches + 1] = font
-            end
-        end
-
-        local y = -4
-        for i, font in ipairs(matches) do
-            local row = rows[i]
-            if not row then
-                row = CreateFrame("Button", nil, child, "BackdropTemplate")
-                row:SetSize(350, 38)
-                row:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8"})
-                row:SetBackdropColor(0.05,0.053,0.064,0.95)
-
-                row.text = row:CreateFontString(nil, "OVERLAY")
-                row.text:SetPoint("LEFT", 10, 0)
-                row.text:SetPoint("RIGHT", -10, 0)
-                row.text:SetJustifyH("LEFT")
-                row.text:SetTextColor(0.95,0.96,0.99)
-                row.text:SetFont("Fonts\\FRIZQT__.TTF", 15, "")
-
-                row:SetScript("OnEnter", function(self)
-                    self:SetBackdropColor(0.12,0.06,0.18,1)
-                end)
-                row:SetScript("OnLeave", function(self)
-                    self:SetBackdropColor(0.05,0.053,0.064,0.95)
-                end)
-
-                rows[i] = row
-            end
-
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", 0, y)
-            row.fontData = font
-
-            local ok = row.text:SetFont(font.path, 15, "")
-            if not ok then
-                row.text:SetFont("Fonts\\FRIZQT__.TTF", 15, "")
-            end
-
-            row.text:SetText(font.name)
-
-            row:SetScript("OnClick", function(self)
-                BFH.db.font = self.fontData.path
-                BFH.db.fontName = self.fontData.name
-                BFH:ApplyDisplaySettings()
-                BFH:ApplyConfigFont()
-                p:Hide()
-                BFH:RefreshConfig()
-            end)
-
-            row:Show()
-            y = y - 42
-        end
-
-        for i = #matches + 1, #rows do
-            rows[i]:Hide()
-        end
-
-        if #matches == 0 then
-            local noFonts = rows[1]
-            if not noFonts then
-                noFonts = CreateFrame("Button", nil, child)
-                noFonts:SetSize(350, 38)
-                noFonts.text = noFonts:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-                noFonts.text:SetPoint("LEFT", 10, 0)
-                noFonts.text:SetFont("Fonts\\FRIZQT__.TTF", 13, "")
-                rows[1] = noFonts
-            end
-            noFonts:ClearAllPoints()
-            noFonts:SetPoint("TOPLEFT", 0, -4)
-            noFonts.text:SetFont("Fonts\\FRIZQT__.TTF", 13, "")
-            noFonts.text:SetText("No matching fonts.")
-            noFonts:Show()
-            child:SetHeight(50)
-        else
-            child:SetHeight(math.max(50, -y + 8))
-        end
-    end
-
-    search:SetScript("OnTextChanged", BuildRows)
-
-    p:ClearAllPoints()
-    p:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    p:Show()
-    BuildRows()
-end
-
-
-function BFH:ApplyConfigFont()
-    local path = self.db.font or "Fonts\\FRIZQT__.TTF"
-    for _, item in ipairs(self.configFontStrings or {}) do
-        if item.obj then
-            local ok = item.obj:SetFont(path, item.size or 12, "")
-            if not ok then item.obj:SetFont("Fonts\\FRIZQT__.TTF", item.size or 12, "") end
-        end
-    end
-    for _, edit in ipairs(self.configEditBoxes or {}) do
-        if edit and edit.SetFont then
-            local ok = edit:SetFont(path, 12, "")
-            if not ok then edit:SetFont("Fonts\\FRIZQT__.TTF", 12, "") end
-        end
-    end
-end
-
-function BFH:ApplyConfigTheme()
-    SyncTheme()
-    if not self.config then return end
-    local b = self.db.menuBackgroundColor or BG
-    self.config:SetBackdropColor(b[1], b[2], b[3], b[4] or 1)
-
-    if self.configHeader then
-        self.configHeader:SetBackdropColor(
-            math.max(0, b[1] * 0.72),
-            math.max(0, b[2] * 0.72),
-            math.max(0, b[3] * 0.72),
-            1
-        )
-    end
-
-    if self.configNav then
-        local p = self.db.menuPanelColor or PANEL
-        self.configNav:SetBackdropColor(p[1], p[2], p[3], p[4] or 1)
-    end
-
-    for name, button in pairs(self.navButtons or {}) do
-        if name == self.currentPage then
-            local a = self.db.menuAccentColor or {0.62,0.11,1,1}
-            button:SetBackdropColor(a[1]*0.18, a[2]*0.18, a[3]*0.18, 1)
-            button:SetBackdropBorderColor(a[1], a[2], a[3], 1)
-        end
-    end
-end
-
-local function Hex(color)
-    local r = math.floor((color[1] or 0) * 255 + 0.5)
-    local g = math.floor((color[2] or 0) * 255 + 0.5)
-    local b = math.floor((color[3] or 0) * 255 + 0.5)
-    return string.format("#%02X%02X%02X", r, g, b)
-end
-
-local function ColorButton(parent, label, getter, setter, alphaEnabled)
+local function Slider(parent, text, minV, maxV, step, getter, setter, format)
     local wrap = CreateFrame("Frame", nil, parent)
     wrap:SetSize(300, 44)
 
-    local text = FS(wrap, label, 11, {0.73,0.76,0.82})
-    text:SetPoint("LEFT", 0, 0)
+    local title = wrap:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    title:SetPoint("TOPLEFT", 0, 0)
+    title:SetText(text)
 
-    local swatch = CreateFrame("Button", nil, wrap, "BackdropTemplate")
-    swatch:SetSize(92, 28)
-    swatch:SetPoint("RIGHT", 0, 0)
-    swatch:SetBackdrop({
-        bgFile="Interface\\Buttons\\WHITE8X8",
-        edgeFile="Interface\\Buttons\\WHITE8X8",
-        edgeSize=1
+    local value = wrap:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    value:SetPoint("TOPRIGHT", 0, 0)
+
+    local s = CreateFrame("Slider", nil, wrap, "BackdropTemplate")
+    s:SetOrientation("HORIZONTAL")
+    s:SetHeight(17)
+    s:SetPoint("TOPLEFT", 0, -18)
+    s:SetPoint("TOPRIGHT", 0, -18)
+    s:SetBackdrop({
+        bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
+        edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = {left = 3, right = 3, top = 6, bottom = 6},
     })
-    swatch:SetBackdropBorderColor(0.25,0.26,0.30,1)
+    s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+    s:SetMinMaxValues(minV, maxV)
+    s:SetValueStep(step)
+    s:SetObeyStepOnDrag(true)
+    s:EnableMouseWheel(true)
 
-    local hex = FS(swatch, "", 10, {1,1,1})
-    hex:SetPoint("CENTER")
-
-    function wrap:Refresh()
-        local c = getter()
-        swatch:SetBackdropColor(c[1], c[2], c[3], c[4] or 1)
-        hex:SetText(Hex(c))
+    local function Show(v)
+        value:SetText(format and format(v) or tostring(v))
     end
 
-    swatch:SetScript("OnClick", function()
-        local old = BFH.DeepCopy(getter())
+    s:SetScript("OnValueChanged", function(self, v)
+        v = Round(v, step)
+        Show(v)
+        if self.refreshing then return end
+        setter(v)
+        BFH:ApplyDisplaySettings()
+    end)
+    s:SetScript("OnMouseWheel", function(self, delta)
+        self:SetValue(math.max(minV, math.min(maxV, self:GetValue() + delta * step)))
+    end)
+
+    wrap.slider = s
+    wrap.Refresh = function()
+        local v = getter()
+        s.refreshing = true
+        s:SetValue(v)
+        s.refreshing = false
+        Show(Round(v, step))
+    end
+    return Track(wrap)
+end
+
+-- items: list of {text=, value=} or a function returning one
+local function Dropdown(parent, text, width, items, getter, setter)
+    local wrap = CreateFrame("Frame", nil, parent)
+    wrap:SetSize(width, 46)
+
+    local title = wrap:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    title:SetPoint("TOPLEFT", 0, 0)
+    title:SetText(text)
+
+    local dd = CreateFrame("DropdownButton", nil, wrap, "WowStyle1DropdownTemplate")
+    dd:SetPoint("TOPLEFT", 0, -16)
+    dd:SetWidth(width)
+    dd:SetupMenu(function(_, root)
+        if root.SetScrollMode then root:SetScrollMode(320) end
+        local list = type(items) == "function" and items() or items
+        for _, item in ipairs(list) do
+            root:CreateRadio(item.text,
+                function() return getter() == item.value end,
+                function()
+                    setter(item.value)
+                    Changed()
+                end)
+        end
+    end)
+
+    wrap.dropdown = dd
+    wrap.Refresh = function() dd:GenerateMenu() end
+    return Track(wrap)
+end
+
+local function Button(parent, text, width, onClick)
+    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(width, 24)
+    b:SetText(text)
+    b:SetScript("OnClick", onClick)
+    return b
+end
+
+local function ColorSwatch(parent, text, getter, setter)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(20, 20)
+
+    local border = b:CreateTexture(nil, "BACKGROUND")
+    border:SetAllPoints()
+    border:SetColorTexture(0.8, 0.8, 0.8, 1)
+    local swatch = b:CreateTexture(nil, "ARTWORK")
+    swatch:SetPoint("TOPLEFT", 2, -2)
+    swatch:SetPoint("BOTTOMRIGHT", -2, 2)
+
+    local fs = b:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    fs:SetPoint("LEFT", b, "RIGHT", 6, 0)
+    fs:SetText(text)
+
+    local function Set(r, g, bb)
+        setter({r, g, bb, 1})
+        Changed()
+    end
+
+    b:SetScript("OnClick", function()
         local c = getter()
-        local info = {
+        ColorPickerFrame:SetupColorPickerAndShow({
             r = c[1], g = c[2], b = c[3],
-            hasOpacity = alphaEnabled and true or false,
-            opacity = 1 - (c[4] or 1),
-            swatchFunc = function()
-                local r,g,b = ColorPickerFrame:GetColorRGB()
-                local a = c[4] or 1
-                if alphaEnabled and ColorPickerFrame.GetColorAlpha then
-                    a = ColorPickerFrame:GetColorAlpha()
-                end
-                setter({r,g,b,a})
-                wrap:Refresh()
-                BFH:ApplyDisplaySettings()
-                BFH:ApplyConfigTheme()
-            end,
-            opacityFunc = function()
-                local r,g,b = ColorPickerFrame:GetColorRGB()
-                local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or (c[4] or 1)
-                setter({r,g,b,a})
-                wrap:Refresh()
-                BFH:ApplyDisplaySettings()
-                BFH:ApplyConfigTheme()
-            end,
-            cancelFunc = function()
-                setter(old)
-                wrap:Refresh()
-                BFH:ApplyDisplaySettings()
-                BFH:ApplyConfigTheme()
-            end,
-        }
-        if ColorPickerFrame.SetupColorPickerAndShow then
-            ColorPickerFrame:SetupColorPickerAndShow(info)
-        else
-            ColorPickerFrame.func = info.swatchFunc
-            ColorPickerFrame.opacityFunc = info.opacityFunc
-            ColorPickerFrame.cancelFunc = info.cancelFunc
-            ColorPickerFrame.hasOpacity = info.hasOpacity
-            ColorPickerFrame.opacity = info.opacity
-            ColorPickerFrame:SetColorRGB(info.r, info.g, info.b)
-            ColorPickerFrame:Show()
-        end
+            hasOpacity = false,
+            swatchFunc = function() Set(ColorPickerFrame:GetColorRGB()) end,
+            cancelFunc = function(prev) Set(prev.r, prev.g, prev.b) end,
+        })
     end)
-
-    return wrap
+    b.Refresh = function()
+        local c = getter()
+        swatch:SetColorTexture(c[1], c[2], c[3], 1)
+    end
+    return Track(b)
 end
 
+-- Text box with Accept/Cancel while editing and a revert arrow otherwise.
+local function NameEditor(parent, text, stage)
+    local wrap = CreateFrame("Frame", nil, parent)
+    wrap:SetSize(420, 26)
 
-function BFH:GetAvailableBarTextures()
-    local result, seen = {}, {}
+    local fs = wrap:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    fs:SetPoint("LEFT", 0, 0)
+    fs:SetWidth(90)
+    fs:SetJustifyH("LEFT")
+    fs:SetText(text)
 
-    local function Add(name, path)
-        if type(name) ~= "string" or type(path) ~= "string" or seen[path] then return end
-        seen[path] = true
-        result[#result + 1] = {name=name, path=path}
+    local box = CreateFrame("EditBox", nil, wrap, "InputBoxTemplate")
+    box:SetSize(170, 22)
+    box:SetPoint("LEFT", fs, "RIGHT", 8, 0)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(40)
+
+    local accept = Button(wrap, ACCEPT or "Accept", 64)
+    accept:SetPoint("LEFT", box, "RIGHT", 6, 0)
+    local cancel = Button(wrap, CANCEL or "Cancel", 64)
+    cancel:SetPoint("LEFT", accept, "RIGHT", 4, 0)
+
+    local reset = CreateFrame("Button", nil, wrap)
+    reset:SetSize(22, 22)
+    reset:SetPoint("LEFT", box, "RIGHT", 6, 0)
+    reset:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
+    reset:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    reset:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Reset to \"" .. BFH.DEFAULT_NAMES[stage] .. "\"")
+        GameTooltip:Show()
+    end)
+    reset:SetScript("OnLeave", GameTooltip_Hide)
+
+    local function SetEditing(editing)
+        accept:SetShown(editing)
+        cancel:SetShown(editing)
+        reset:SetShown(not editing)
     end
 
-    Add("Blizzard", "Interface\\TargetingFrame\\UI-StatusBar")
-    Add("Blizzard Raid", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill")
-    Add("Solid", "Interface\\Buttons\\WHITE8X8")
-
-    local libStub = _G.LibStub
-    if libStub and type(libStub.GetLibrary) == "function" then
-        local ok, lsm = pcall(libStub.GetLibrary, libStub, "LibSharedMedia-3.0", true)
-        if ok and lsm and type(lsm.HashTable) == "function" then
-            local okBars, bars = pcall(lsm.HashTable, lsm, "statusbar")
-            if okBars and type(bars) == "table" then
-                for name, path in pairs(bars) do Add(name, path) end
-            end
-        end
+    -- Accept/Cancel stay up until one of them is used, so an unsaved edit
+    -- is never lost just because focus moved elsewhere.
+    local function Commit()
+        local v = strtrim(box:GetText() or "")
+        if v == "" then v = BFH.DEFAULT_NAMES[stage] end
+        BFH.db.names[stage] = v
+        box:ClearFocus()
+        SetEditing(false)
+        Changed()
     end
 
-    table.sort(result, function(a,b) return a.name:lower() < b.name:lower() end)
-    return result
-end
-
-function BFH:OpenBarTexturePicker(anchor)
-    if self.barTexturePicker then
-        self.barTexturePicker:Hide()
-        self.barTexturePicker:SetParent(nil)
-        self.barTexturePicker = nil
+    local function Revert()
+        box:SetText(BFH.db.names[stage] or BFH.DEFAULT_NAMES[stage])
+        box:ClearFocus()
+        SetEditing(false)
     end
 
-    local p = CreateFrame("Frame", "BlightfallBarTexturePicker", UIParent, "BackdropTemplate")
-    p:SetSize(430, 500)
-    p:SetFrameStrata("FULLSCREEN_DIALOG")
-    p:SetClampedToScreen(true)
-    p:EnableMouse(true)
-    Backdrop(p, {0.025,0.027,0.034,0.995})
-    self.barTexturePicker = p
-
-    local title = FS(p, "Choose Bar Style", 17, WHITE)
-    title:SetPoint("TOPLEFT", 18, -16)
-
-    local close = AccentCloseButton(p, function()
-        p:Hide()
-    end, 36)
-    close:SetPoint("TOPRIGHT", -12, -12)
-
-    local search = CreateFrame("EditBox", nil, p, "BackdropTemplate")
-    search:SetSize(380, 30)
-    search:SetPoint("TOPLEFT", 18, -54)
-    Backdrop(search, {0.04,0.043,0.052,1})
-    search:SetFont(BFH.db.font or "Fonts\\FRIZQT__.TTF", 12, "")
-    search:SetTextInsets(10,8,0,0)
-    search:SetAutoFocus(false)
-
-    local placeholder = FS(search, "Search bar styles...", 11, MUTED)
-    placeholder:SetPoint("LEFT", 10, 0)
-
-    local scroll = CreateFrame("ScrollFrame", nil, p, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 18, -96)
-    scroll:SetPoint("BOTTOMRIGHT", -42, 18)
-
-    local child = CreateFrame("Frame", nil, scroll)
-    child:SetWidth(365)
-    child:SetHeight(1)
-    scroll:SetScrollChild(child)
-
-    local rows = {}
-
-    local function BuildRows()
-        local q = (search:GetText() or ""):lower()
-        placeholder:SetShown(q == "")
-        local textures = BFH:GetAvailableBarTextures()
-        local matches = {}
-
-        for _, tex in ipairs(textures) do
-            if q == "" or tex.name:lower():find(q, 1, true) then
-                matches[#matches+1] = tex
-            end
-        end
-
-        local y = -4
-        for i, tex in ipairs(matches) do
-            local row = rows[i]
-            if not row then
-                row = CreateFrame("Button", nil, child, "BackdropTemplate")
-                row:SetSize(350, 46)
-                row:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8"})
-                row:SetBackdropColor(0.05,0.053,0.064,0.95)
-
-                row.preview = row:CreateTexture(nil, "ARTWORK")
-                row.preview:SetPoint("LEFT", 10, 0)
-                row.preview:SetSize(120, 16)
-
-                row.text = row:CreateFontString(nil, "OVERLAY")
-                row.text:SetPoint("LEFT", row.preview, "RIGHT", 12, 0)
-                row.text:SetFont(BFH.db.font or "Fonts\\FRIZQT__.TTF", 13, "")
-                row.text:SetTextColor(0.95,0.96,0.99)
-
-                row:SetScript("OnEnter", function(self)
-                    self:SetBackdropColor(0.12,0.06,0.18,1)
-                end)
-                row:SetScript("OnLeave", function(self)
-                    self:SetBackdropColor(0.05,0.053,0.064,0.95)
-                end)
-
-                rows[i] = row
-            end
-
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", 0, y)
-            row.textureData = tex
-            row.preview:SetTexture(tex.path)
-            row.preview:SetVertexColor(0.62,0.11,1,1)
-            row.text:SetText(tex.name)
-
-            row:SetScript("OnClick", function(self)
-                BFH.db.barTexture = self.textureData.path
-                BFH.db.barTextureName = self.textureData.name
-                BFH:ApplyDisplaySettings()
-                p:Hide()
-                BFH:RefreshConfig()
-            end)
-
-            row:Show()
-            y = y - 50
-        end
-
-        for i = #matches+1, #rows do rows[i]:Hide() end
-        child:SetHeight(math.max(50, -y + 8))
-    end
-
-    search:SetScript("OnTextChanged", BuildRows)
-    p:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    p:Show()
-    BuildRows()
-end
-
-function BFH:InitializeConfig()
-    SyncTheme()
-    self.configFontStrings = {}
-    self.configEditBoxes = {}
-
-    local f = CreateFrame("Frame", "BlightfallConfig", UIParent, "BackdropTemplate")
-    f:SetSize(self.db.configWidth, self.db.configHeight)
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    f:SetFrameStrata("DIALOG")
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
-    f:SetResizable(true)
-    f:SetResizeBounds(900, 600, 1300, 900)
-    f:EnableMouse(true)
-    Backdrop(f, BG)
-    f:Hide()
-    self.config = f
-
-    local header = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    self.configHeader = header
-    header:SetPoint("TOPLEFT")
-    header:SetPoint("TOPRIGHT")
-    header:SetHeight(78)
-    header:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8"})
-    header:SetBackdropColor(0.035,0.038,0.048,1)
-    header:EnableMouse(true)
-    header:RegisterForDrag("LeftButton")
-    header:SetScript("OnDragStart", function() f:StartMoving() end)
-    header:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
-
-    local title = FS(header, "Blightfall", 24, WHITE)
-    title:SetPoint("LEFT", 26, 10)
-
-    local ver = FS(header, "v"..self.VERSION, 11, MUTED)
-    ver:SetPoint("LEFT", title, "RIGHT", 10, -2)
-
-    local author = FS(header, "by JSAL", 11, {0.78, 0.38, 1})
-    author:SetPoint("LEFT", ver, "RIGHT", 10, 0)
-
-    local sub = FS(header, "Unholy DK cast timing assistant", 11, MUTED)
-    sub:SetPoint("TOPLEFT", 28, -52)
-
-    local close = AccentCloseButton(header, function()
-        if BFH.fontPicker then BFH.fontPicker:Hide() end
-        if BFH.barTexturePicker then BFH.barTexturePicker:Hide() end
-        f:Hide()
-        BFH:StopStage()
-    end, 46)
-    close:SetPoint("TOPRIGHT", -14, -16)
-    self.closeButton = close
-
-    local search = CreateFrame("EditBox", nil, header, "BackdropTemplate")
-    search:SetSize(250, 30)
-    search:SetPoint("RIGHT", close, "LEFT", -18, 0)
-    Backdrop(search, {0.025,0.028,0.035,1})
-    search:SetAutoFocus(false)
-    search:SetFont(self.db.font or "Fonts\\FRIZQT__.TTF", 12, "")
-    table.insert(self.configEditBoxes, search)
-    search:SetTextInsets(10,8,0,0)
-    local placeholder = FS(search, "Search settings...", 11, MUTED)
-    placeholder:SetPoint("LEFT", 10, 0)
-    search:SetScript("OnTextChanged", function(self)
-        placeholder:SetShown(self:GetText() == "")
-        BFH.searchText = (self:GetText() or ""):lower()
-        BFH:RefreshSearch()
+    box:SetScript("OnEditFocusGained", function() SetEditing(true) end)
+    box:SetScript("OnEnterPressed", Commit)
+    box:SetScript("OnEscapePressed", Revert)
+    accept:SetScript("OnClick", Commit)
+    cancel:SetScript("OnClick", Revert)
+    reset:SetScript("OnClick", function()
+        BFH.db.names[stage] = BFH.DEFAULT_NAMES[stage]
+        Changed()
     end)
 
-    local nav = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    self.configNav = nav
-    nav:SetPoint("TOPLEFT", 0, -78)
-    nav:SetPoint("BOTTOMLEFT")
-    nav:SetWidth(205)
-    nav:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8"})
-    nav:SetBackdropColor(0.02,0.022,0.028,0.98)
-
-    local content = CreateFrame("Frame", nil, f)
-    content:SetPoint("TOPLEFT", nav, "TOPRIGHT", 0, 0)
-    content:SetPoint("BOTTOMRIGHT", -20, 20)
-    self.content = content
-
-    local resize = CreateFrame("Button", nil, f, "BackdropTemplate")
-    resize:SetSize(28,28)
-    resize:SetPoint("BOTTOMRIGHT", -10, 10)
-    resize:SetFrameLevel(f:GetFrameLevel() + 30)
-    resize:EnableMouse(true)
-    resize:SetBackdrop({
-        bgFile="Interface\\Buttons\\WHITE8X8",
-        edgeFile="Interface\\Buttons\\WHITE8X8",
-        edgeSize=1
-    })
-    resize:SetBackdropColor(0.045,0.048,0.058,0.95)
-    resize:SetBackdropBorderColor(0.22,0.23,0.27,1)
-    local rt = FS(resize, "◢", 18, {0.7,0.72,0.78})
-    rt:SetPoint("CENTER", 0, -1)
-    AddTooltip(resize, "Resize window", "Drag this corner to change the Blightfall settings window size.")
-    resize:SetScript("OnMouseDown", function()
-        f:StartSizing("BOTTOMRIGHT")
-    end)
-    resize:SetScript("OnMouseUp", function()
-        f:StopMovingOrSizing()
-        BFH.db.configWidth = math.floor(f:GetWidth() + 0.5)
-        BFH.db.configHeight = math.floor(f:GetHeight() + 0.5)
-    end)
-
-    self.pages = {}
-    self.navButtons = {}
-    self.currentPage = "General"
-
-    local pageNames = {"General","Display","Timing","Sound","Fonts","Colors","Profiles"}
-
-    for i, name in ipairs(pageNames) do
-        local b = Button(nav, name, 177, 38, function() BFH:ShowPage(name) end)
-        b:SetPoint("TOPLEFT", 14, -20 - (i-1)*46)
-        self.navButtons[name] = b
-
-        local holder = CreateFrame("Frame", nil, content)
-        holder:SetAllPoints()
-        holder:Hide()
-
-        local page = MakeScrollablePage(holder)
-        self.pages[name] = {holder=holder, page=page}
-    end
-
-    local searchHolder = CreateFrame("Frame", nil, content)
-    searchHolder:SetAllPoints()
-    searchHolder:Hide()
-    self.searchHolder = searchHolder
-
-    local searchPage = MakeScrollablePage(searchHolder)
-    self.searchPage = searchPage
-    PageTitle(searchPage, "Search Results", "Click a result to open the relevant settings tab.")
-    self.searchRows = {}
-
-    local function Page(name)
-        return self.pages[name].page
-    end
-
-    -- General
-    do
-        local p = Page("General")
-        PageTitle(p, "General", "Core behaviour, minimap access and display positioning.")
-
-        local c1 = Checkbox(p, "Enable Blightfall",
-            function() return self.db.enabled end,
-            function(v) self.db.enabled = v; if not v then self:StopStage() end end)
-        c1:SetPoint("TOPLEFT", 30, -105)
-        HelpBeside(p, c1, "Enable addon", "Turns the helper on or off without disabling the addon in WoW's addon list.")
-
-        local c2 = Checkbox(p, "Lock display position",
-            function() return self.db.locked end,
-            function(v) self.db.locked = v; self:ApplyDisplaySettings() end)
-        c2:SetPoint("TOPLEFT", 30, -155)
-        HelpBeside(p, c2, "Lock position", "Unlock this to drag the active timer/preview anywhere on your screen.")
-
-        local c3 = Checkbox(p, "Show minimap button",
-            function() return self.db.showMinimapButton end,
-            function(v) self.db.showMinimapButton = v; self:UpdateMinimapButton() end)
-        c3:SetPoint("TOPLEFT", 30, -205)
-        HelpBeside(p, c3, "Minimap button", "Shows the Blightfall icon on the minimap. Left-click it to open /bf and drag it around the minimap edge.")
-
-
-        local minimapHover = Checkbox(p, "Show minimap button only on mouseover",
-            function() return self.db.minimapMouseoverOnly end,
-            function(v)
-                self.db.minimapMouseoverOnly = v
-                self:UpdateMinimapButton()
-            end,
-            "Minimap mouseover", "When enabled, the minimap icon is invisible until your mouse moves over its saved position.")
-        minimapHover:SetPoint("TOPLEFT", 30, -255)
-        HelpBeside(p, minimapHover, "Minimap mouseover",
-            "When enabled, the minimap icon is invisible until your mouse moves over its saved position.")
-
-        local soulModule = Checkbox(p, "Enable Soul Reaper timer",
-            function() return self.db.enableSoulReaperBar end,
-            function(v)
-                self.db.enableSoulReaperBar = v
-                if not v and self.stage == "SOUL" then self:StopStage() end
-            end)
-        soulModule:SetPoint("TOPLEFT", 30, -315)
-        HelpBeside(p, soulModule, "Soul Reaper timer",
-            "Shows or hides the Soul Reaper timer module. The sequence still tracks Soul Reaper casts so Blightfall can work independently.")
-
-        local blightModule = Checkbox(p, "Enable Blightfall timer",
-            function() return self.db.enableBlightfallBar end,
-            function(v)
-                self.db.enableBlightfallBar = v
-                if not v and self.stage == "BLIGHT" then self:StopStage() end
-            end)
-        blightModule:SetPoint("TOPLEFT", 370, -315)
-        HelpBeside(p, blightModule, "Blightfall timer",
-            "Shows or hides the Blightfall timer module independently of Soul Reaper.")
-
-        local putrefyModule = Checkbox(p, "Enable Putrefy timer",
-            function() return self.db.enablePutrefyBar end,
-            function(v)
-                self.db.enablePutrefyBar = v
-                if not v and self.stage == "PUTREFY" then self:StopStage() end
-            end)
-        putrefyModule:SetPoint("TOPLEFT", 370, -365)
-        HelpBeside(p, putrefyModule, "Putrefy timer",
-            "Shows a Putrefy timer after you cast Blightfall. Casting Putrefy removes it. Works even if the Blightfall timer is hidden.")
-
-        local dungeonDisable = Checkbox(p, "Disable helper in dungeons",
-            function() return self.db.disableInDungeons end,
-            function(v)
-                self.db.disableInDungeons = v
-                self:RefreshInstanceState()
-            end)
-        dungeonDisable:SetPoint("TOPLEFT", 30, -365)
-        HelpBeside(p, dungeonDisable, "Disable in dungeons",
-            "When enabled, combat timers are disabled inside 5-player dungeon instances. Off by default.")
-
-        local talentStatus = FS(p, "", 11, MUTED)
-        talentStatus:SetPoint("TOPLEFT", 30, -420)
-        self.talentStatusText = talentStatus
-
-        local test = Button(p, "Preview Soul Reaper", 145, 30, function()
-            if self:HasSoulReaper() then self:ShowPreview("SOUL") end
-        end)
-        test:SetPoint("TOPLEFT", 30, -465)
-
-        local test2 = Button(p, "Preview Blightfall", 145, 30, function()
-            if self:HasBlightfall() then self:ShowPreview("BLIGHT") end
-        end)
-        test2:SetPoint("LEFT", test, "RIGHT", 12, 0)
-
-        local test3 = Button(p, "Preview Putrefy", 135, 30, function()
-            if self:HasPutrefy() then self:ShowPreview("PUTREFY") end
-        end)
-        test3:SetPoint("LEFT", test2, "RIGHT", 12, 0)
-
-        local stop = Button(p, "Stop Preview", 125, 30, function() self:StopStage() end)
-        local previewNote = FS(p, "Preview loops continuously until you press Stop Preview.", 11, MUTED)
-        previewNote:SetPoint("TOPLEFT", 30, -505)
-
-        stop:SetPoint("LEFT", test3, "RIGHT", 12, 0)
-
-        local credit = FS(p, "Created by JSAL", 11, MUTED)
-        credit:SetPoint("TOPLEFT", 30, -610)
-
-        local reset = Button(p, "Reset Position", 145, 30, function()
-            self.db.point = "CENTER"
-            self.db.relativePoint = "CENTER"
-            self.db.x = 0
-            self.db.y = 0
-            self:ApplyPosition()
-        end)
-        reset:SetPoint("TOPLEFT", 30, -550)
-
-        self.pages.General.controls = {c1,c2,c3,minimapHover,soulModule,blightModule,putrefyModule,dungeonDisable}
-    end
-
-    -- Display
-    do
-        local p = Page("Display")
-        PageTitle(p, "Display", "Control layout, bar style, text, icons, marker and borders.")
-
-        local leftX, rightX = 30, 370
-
-        -- GENERAL DISPLAY
-        local mode = Dropdown(
-            p, "Display mode",
-            {{text="Progress Bar",value="BAR"},{text="Icon Only",value="ICON"},{text="Text Only",value="TEXT"}},
-            function() return self.db.displayMode end,
-            function(v) self.db.displayMode = v end
-        )
-        mode:SetPoint("TOPLEFT", leftX, -105)
-        HelpBeside(p, mode, "Display mode",
-            "Progress Bar shows a bar. Icon Only shows the spell icon. Text Only removes both the bar and icon.")
-
-        local scale = Slider(p, "Overall scale", 0.5, 2.0, 0.05,
-            function() return self.db.scale end,
-            function(v) self.db.scale = v end,
-            function(v) return string.format("%.2f",v) end)
-        scale:SetPoint("TOPLEFT", leftX, -185)
-
-        -- BAR SIZE / BACKGROUND
-        local barWidth = Slider(p, "Bar width", 100, 500, 5,
-            function() return self.db.barWidth end,
-            function(v) self.db.barWidth = v end,
-            function(v) return string.format("%d px",v) end)
-        barWidth:SetPoint("TOPLEFT", rightX, -185)
-
-        local barHeight = Slider(p, "Bar height", 10, 60, 1,
-            function() return self.db.barHeight end,
-            function(v) self.db.barHeight = v end,
-            function(v) return string.format("%d px",v) end)
-        barHeight:SetPoint("TOPLEFT", leftX, -265)
-
-        local bg = Slider(p, "Bar background opacity", 0, 1, 0.05,
-            function() return self.db.backgroundAlpha end,
-            function(v) self.db.backgroundAlpha = v end,
-            function(v) return string.format("%d%%",v*100) end)
-        bg:SetPoint("TOPLEFT", rightX, -265)
-
-        -- BAR STYLE
-        local barStyleLabel = FS(p, "Bar style", 11, {0.73,0.76,0.82})
-        barStyleLabel:SetPoint("TOPLEFT", leftX, -350)
-
-        local barStyle = Button(p, self.db.barTextureName or "Blizzard", 300, 30, function(selfButton)
-            BFH:OpenBarTexturePicker(selfButton)
-        end)
-        barStyle:SetPoint("TOPLEFT", leftX, -372)
-        self.barStyleButton = barStyle
-        HelpBeside(p, barStyle, "Bar style",
-            "Choose the StatusBar texture. LibSharedMedia textures from Quartz, WeakAuras, SharedMedia and other addons appear automatically.")
-
-        local reverse = Checkbox(p, "Reverse bar direction",
-            function() return self.db.barReverseFill end,
-            function(v) self.db.barReverseFill = v; self:ApplyDisplaySettings() end)
-        reverse:SetPoint("TOPLEFT", rightX, -372)
-
-        local smooth = Checkbox(p, "Smooth bar movement",
-            function() return self.db.barSmooth end,
-            function(v) self.db.barSmooth = v end)
-        smooth:SetPoint("TOPLEFT", rightX, -414)
-
-        -- BAR TEXT
-        local showBarText = Checkbox(p, "Show text on progress bar",
-            function() return self.db.showBarText end,
-            function(v) self.db.showBarText = v; self:ApplyDisplaySettings() end)
-        showBarText:SetPoint("TOPLEFT", leftX, -470)
-        HelpBeside(p, showBarText, "Bar text",
-            "Turn this off for a clean progress bar with no spell name or countdown text.")
-
-        local textPos = Dropdown(
-            p, "Bar text position",
-            {{text="Left",value="LEFT"},{text="Center",value="CENTER"},{text="Right",value="RIGHT"}},
-            function() return self.db.barTextPosition end,
-            function(v) self.db.barTextPosition = v end
-        )
-        textPos:SetPoint("TOPLEFT", rightX, -460)
-        HelpBeside(p, textPos, "Bar text position",
-            "Moves the spell name to the left, centre or right. Right swaps the countdown to the left. Centre shows only the spell name to prevent overlap.")
-
-        local spark = Checkbox(p, "Show moving marker",
-            function() return self.db.showSpark end,
-            function(v) self.db.showSpark = v; self:ApplyDisplaySettings() end)
-        spark:SetPoint("TOPLEFT", leftX, -530)
-
-        -- BAR ICON
-        local showIcon = Checkbox(p, "Show spell icon on bar",
-            function() return self.db.showIcon end,
-            function(v) self.db.showIcon = v; self:ApplyDisplaySettings() end)
-        showIcon:SetPoint("TOPLEFT", rightX, -530)
-
-        local iconPos = Dropdown(
-            p, "Bar icon position",
-            {{text="Left",value="LEFT"},{text="Right",value="RIGHT"}},
-            function() return self.db.iconPosition end,
-            function(v) self.db.iconPosition = v end
-        )
-        iconPos:SetPoint("TOPLEFT", leftX, -595)
-
-        local iconSize = Slider(p, "Bar icon size", 10, 80, 1,
-            function() return self.db.iconSize end,
-            function(v) self.db.iconSize = v end,
-            function(v) return string.format("%d px",v) end)
-        iconSize:SetPoint("TOPLEFT", rightX, -595)
-
-        -- ICON ONLY
-        local iconOnlySize = Slider(p, "Icon-only size", 32, 128, 2,
-            function() return self.db.iconOnlySize end,
-            function(v) self.db.iconOnlySize = v end,
-            function(v) return string.format("%d px",v) end)
-        iconOnlySize:SetPoint("TOPLEFT", leftX, -680)
-
-        local iconCountdownPos = Dropdown(
-            p, "Icon countdown position",
-            {{text="Below Icon",value="BELOW"},{text="Center of Icon",value="CENTER"}},
-            function() return self.db.iconCountdownPosition end,
-            function(v) self.db.iconCountdownPosition = v end
-        )
-        iconCountdownPos:SetPoint("TOPLEFT", rightX, -670)
-        HelpBeside(p, iconCountdownPos, "Icon countdown position",
-            "Choose whether the remaining time sits below the icon or directly in its centre.")
-
-        local iconCountdownSize = Slider(p, "Icon countdown text size", 8, 48, 1,
-            function() return self.db.iconCountdownFontSize end,
-            function(v) self.db.iconCountdownFontSize = v end,
-            function(v) return string.format("%d px",v) end)
-        iconCountdownSize:SetPoint("TOPLEFT", leftX, -760)
-
-        local iconCountdownColor = ColorButton(p, "Icon countdown colour",
-            function() return self.db.iconCountdownColor end,
-            function(v) self.db.iconCountdownColor = v end, true)
-        iconCountdownColor:SetPoint("TOPLEFT", rightX, -760)
-
-        -- BORDERS
-        local barBorderToggle = Checkbox(p, "Show bar border",
-            function() return self.db.barBorderEnabled end,
-            function(v) self.db.barBorderEnabled = v; self:ApplyDisplaySettings() end)
-        barBorderToggle:SetPoint("TOPLEFT", leftX, -845)
-
-        local iconBorderToggle = Checkbox(p, "Show icon border",
-            function() return self.db.iconBorderEnabled end,
-            function(v) self.db.iconBorderEnabled = v; self:ApplyDisplaySettings() end)
-        iconBorderToggle:SetPoint("TOPLEFT", rightX, -845)
-
-        local barBorderSize = Slider(p, "Bar border thickness", 0, 8, 1,
-            function() return self.db.barBorderSize end,
-            function(v) self.db.barBorderSize = v end,
-            function(v) return string.format("%d px", v) end)
-        barBorderSize:SetPoint("TOPLEFT", leftX, -905)
-
-        local iconBorderSize = Slider(p, "Icon border thickness", 0, 8, 1,
-            function() return self.db.iconBorderSize end,
-            function(v) self.db.iconBorderSize = v end,
-            function(v) return string.format("%d px", v) end)
-        iconBorderSize:SetPoint("TOPLEFT", rightX, -905)
-
-        local barBorderColor = ColorButton(p, "Bar border colour",
-            function() return self.db.barBorderColor end,
-            function(v) self.db.barBorderColor = v end, true)
-        barBorderColor:SetPoint("TOPLEFT", leftX, -980)
-
-        local iconBorderColor = ColorButton(p, "Icon border colour",
-            function() return self.db.iconBorderColor end,
-            function(v) self.db.iconBorderColor = v end, true)
-        iconBorderColor:SetPoint("TOPLEFT", rightX, -980)
-
-        self.pages.Display.controls = {
-            mode,scale,barWidth,barHeight,bg,barStyle,reverse,smooth,
-            showBarText,textPos,spark,showIcon,iconPos,iconSize,
-            iconOnlySize,iconCountdownPos,iconCountdownSize,iconCountdownColor,
-            barBorderToggle,iconBorderToggle,barBorderSize,iconBorderSize,
-            barBorderColor,iconBorderColor
-        }
-    end
-
-    -- Timing
-    do
-        local p = Page("Timing")
-        PageTitle(p, "Timing", "Adjust the recommended time between each cast.")
-
-        local s1 = Slider(p, "Soul Reaper delay after Dark Transformation", 1, 12, 0.1,
-            function() return self.db.soulDelay end,
-            function(v) self.db.soulDelay = v end,
-            function(v) return string.format("%.1fs",v) end)
-        s1:SetPoint("TOPLEFT", 30, -120)
-        HelpBeside(p, s1, "Soul Reaper delay", "How long the Soul Reaper timer runs after Dark Transformation. Casting Soul Reaper early immediately moves on to Blightfall.")
-
-        local s2 = Slider(p, "Blightfall delay after Soul Reaper", 1, 12, 0.1,
-            function() return self.db.blightDelay end,
-            function(v) self.db.blightDelay = v end,
-            function(v) return string.format("%.1fs",v) end)
-        s2:SetPoint("TOPLEFT", 30, -215)
-        HelpBeside(p, s2, "Blightfall delay", "How long the Blightfall timer runs after the first Soul Reaper following Dark Transformation.")
-
-        local s4 = Slider(p, "Putrefy delay after Blightfall", 1, 20, 0.1,
-            function() return self.db.putrefyDelay end,
-            function(v) self.db.putrefyDelay = v end,
-            function(v) return string.format("%.1fs",v) end)
-        s4:SetPoint("TOPLEFT", 370, -215)
-        HelpBeside(p, s4, "Putrefy delay", "How long the Putrefy timer runs after you cast Blightfall. Default 10 seconds.")
-
-        local s3 = Slider(p, "Spoken countdown starts at", 1, 10, 1,
-            function() return self.db.countdownStart end,
-            function(v) self.db.countdownStart = v end,
-            function(v) return tostring(v) end)
-        s3:SetPoint("TOPLEFT", 30, -310)
-        HelpBeside(p, s3, "Countdown start", "Choose how many of the final seconds are spoken. The included custom number pack supports 1 through 10.")
-
-        local cancelAfterDT = Checkbox(p, "Cancel sequence when Dark Transformation ends",
-            function() return self.db.cancelAfterDT end,
-            function(v)
-                self.db.cancelAfterDT = v
-                if v then
-                    self:StartDarkTransformationWatcher()
-                    self:CheckDarkTransformationAura()
-                else
-                    self:CancelDarkTransformationWatcher()
-                    self.dtGracePending = false
-                end
-            end)
-        cancelAfterDT:SetPoint("TOPLEFT", 30, -395)
-        HelpBeside(p, cancelAfterDT, "Cancel after Dark Transformation",
-            "Stops the current Soul Reaper/Blightfall/Putrefy sequence after Dark Transformation disappears from your ghoul. Once cancelled, a new sequence requires another Dark Transformation cast.")
-
-        local dtGrace = Slider(p, "Grace period after Dark Transformation ends", 0, 10, 1,
-            function() return self.db.dtCancelGrace or 5 end,
-            function(v) self.db.dtCancelGrace = v end,
-            function(v)
-                if v == 1 then return "1 second" end
-                return string.format("%d seconds", v)
-            end)
-        dtGrace:SetPoint("TOPLEFT", 30, -475)
-        HelpBeside(p, dtGrace, "Grace period",
-            "Choose how long the sequence stays valid after Dark Transformation ends. 0 seconds cancels immediately; the default is 5 seconds.")
-
-        local precision = Dropdown(
-            p, "Timer precision",
-            {{text="Whole seconds",value=0},{text="1 decimal",value=1},{text="2 decimals",value=2}},
-            function() return self.db.precision end,
-            function(v) self.db.precision = v end
-        )
-        precision:SetPoint("TOPLEFT", 30, -575)
-
-        self.pages.Timing.controls = {s1,s2,s4,s3,cancelAfterDT,dtGrace,precision}
-    end
-
-    -- Sound
-    do
-        local p = Page("Sound")
-        PageTitle(p, "Sound", "Choose your uploaded number files or WoW's built-in text-to-speech.")
-
-        local enabled = Checkbox(p, "Enable spoken countdown",
-            function() return self.db.soundEnabled end,
-            function(v) self.db.soundEnabled = v; if not v then self:StopTTS() end end)
-        enabled:SetPoint("TOPLEFT", 30, -105)
-
-        local mode = Dropdown(
-            p, "Countdown audio mode",
-            {{text="Custom 1-10 voice files",value="FILES"},{text="WoW Text-to-Speech",value="TTS"}},
-            function() return self.db.audioMode end,
-            function(v) self.db.audioMode = v; if v ~= "TTS" then self:StopTTS() end end
-        )
-        mode:SetPoint("TOPLEFT", 30, -170)
-        HelpBeside(p, mode, "Audio mode", "Custom files use the 1-10 .ogg files bundled with Blightfall. TTS uses WoW's text-to-speech engine and has its own volume control.")
-
-        local channel = Dropdown(
-            p, "Custom-file WoW sound channel",
-            {
-                {text="Master",value="Master"},
-                {text="SFX",value="SFX"},
-                {text="Dialog",value="Dialog"},
-                {text="Music",value="Music"},
-                {text="Ambience",value="Ambience"},
-            },
-            function() return self.db.soundChannel end,
-            function(v) self.db.soundChannel = v end
-        )
-        channel:SetPoint("TOPLEFT", 30, -250)
-        HelpBeside(p, channel, "Sound channel", "Only applies to Custom Voice Files. These files follow the selected WoW mixer channel's volume.")
-
-        local volume = Slider(p, "TTS volume", 0, 100, 1,
-            function() return self.db.ttsVolume end,
-            function(v) self.db.ttsVolume = v end,
-            function(v) return string.format("%d%%",v) end)
-        volume:SetPoint("TOPLEFT", 370, -250)
-        HelpBeside(p, volume, "TTS volume", "Independent volume passed to WoW's text-to-speech system. It does not alter your normal SFX/Music/Ambience sliders.")
-
-        local rate = Slider(p, "TTS voice speed", -10, 10, 1,
-            function() return self.db.ttsRate end,
-            function(v) self.db.ttsRate = v end,
-            function(v) return tostring(v) end)
-        rate:SetPoint("TOPLEFT", 370, -335)
-
-        local voiceButton = Button(p, "Choose TTS Voice", 180, 30, function(selfButton)
-            local voices = BFH:GetTTSVoices()
-            if #voices == 0 then
-                print("|cff9f1cffBlightfall:|r No WoW TTS voices are currently available.")
-                return
-            end
-            MenuUtil.CreateContextMenu(selfButton, function(owner, rootDescription)
-                for _, voice in ipairs(voices) do
-                    local label = voice.name or ("Voice "..tostring(voice.voiceID))
-                    rootDescription:CreateRadio(
-                        label,
-                        function() return BFH.db.ttsVoiceID == voice.voiceID end,
-                        function()
-                            BFH.db.ttsVoiceID = voice.voiceID
-                            BFH:RefreshConfig()
-                        end
-                    )
-                end
-            end)
-        end)
-        voiceButton:SetPoint("TOPLEFT", 30, -340)
-
-        local testTTS = Button(p, "Test TTS", 100, 30, function()
-            local old = self.db.audioMode
-            self.db.audioMode = "TTS"
-            self:PlayCountdown(4)
-            self.db.audioMode = old
-        end)
-        testTTS:SetPoint("LEFT", voiceButton, "RIGHT", 12, 0)
-
-        local note = FS(p, "Test bundled custom sounds:", 11, MUTED)
-        note:SetPoint("TOPLEFT", 30, -430)
-
-        local x, y = 30, -460
-        for n = 10, 1, -1 do
-            local b = Button(p, tostring(n), 48, 30, function()
-                local old = self.db.audioMode
-                self.db.audioMode = "FILES"
-                self:PlayCountdown(n)
-                self.db.audioMode = old
-            end)
-            b:SetPoint("TOPLEFT", x, y)
-            x = x + 56
-            if n == 6 then x, y = 30, y - 42 end
+    SetEditing(false)
+    wrap.Refresh = function()
+        if not accept:IsShown() then
+            box:SetText(BFH.db.names[stage] or BFH.DEFAULT_NAMES[stage])
         end
-
-        self.pages.Sound.controls = {enabled,mode,channel,volume,rate}
     end
-
-    -- Fonts
-    do
-        local p = Page("Fonts")
-        PageTitle(p, "Fonts", "Choose the typeface and text sizes used by both the timer and the Blightfall menu.")
-
-        local fontLabel = FS(p, "Font", 11, {0.73,0.76,0.82})
-        fontLabel:SetPoint("TOPLEFT", 30, -110)
-
-        local fontButton = Button(p, self.db.fontName or "Friz Quadrata", 320, 32, function(selfButton)
-            BFH:OpenFontPicker(selfButton)
-        end)
-        fontButton:SetPoint("TOPLEFT", 30, -132)
-        self.fontButton = fontButton
-        HelpBeside(p, fontButton, "Font library",
-            "Includes WoW fonts, fonts exposed through LibSharedMedia by addons such as WeakAuras, and compatible files placed in Blightfall\\Fonts.")
-
-        local s1 = Slider(p, "Spell-name font size", 8, 32, 1,
-            function() return self.db.labelFontSize end,
-            function(v) self.db.labelFontSize = v end,
-            function(v) return string.format("%d px",v) end)
-        s1:SetPoint("TOPLEFT", 30, -220)
-
-        local s2 = Slider(p, "Timer font size", 8, 32, 1,
-            function() return self.db.timerFontSize end,
-            function(v) self.db.timerFontSize = v end,
-            function(v) return string.format("%d px",v) end)
-        s2:SetPoint("TOPLEFT", 370, -220)
-
-        local note = FS(p,
-            "The selected font is also applied to the Blightfall settings interface.",
-            11, MUTED)
-        note:SetPoint("TOPLEFT", 30, -305)
-
-        self.pages.Fonts.controls = {s1,s2}
-    end
-
-    -- Colors
-    do
-        local p = Page("Colors")
-        PageTitle(p, "Colors", "Customize the addon menu and every timer colour. Defaults match the current design.")
-
-        local c1 = ColorButton(p, "Soul Reaper bar", function() return self.db.soulColor end,
-            function(v) self.db.soulColor = v end, false)
-        c1:SetPoint("TOPLEFT", 30, -110)
-        HelpBeside(p, c1, "Soul Reaper colour", "Default #1C28FF. Used from 4.0 seconds upward.")
-
-        local c2 = ColorButton(p, "Blightfall bar", function() return self.db.blightColor end,
-            function(v) self.db.blightColor = v end, false)
-        c2:SetPoint("TOPLEFT", 370, -110)
-        HelpBeside(p, c2, "Blightfall colour", "Default #9F1CFF. Used from 4.0 seconds upward.")
-
-        local c3 = ColorButton(p, "Under 4 seconds", function() return self.db.dangerColor end,
-            function(v) self.db.dangerColor = v end, false)
-        c3:SetPoint("TOPLEFT", 30, -180)
-        HelpBeside(p, c3, "Danger colour", "Default #FF0010. All timers switch to this colour below 4 seconds.")
-
-        local c4 = ColorButton(p, "Bar background", function() return self.db.barBackgroundColor end,
-            function(v) self.db.barBackgroundColor = v end, false)
-        c4:SetPoint("TOPLEFT", 370, -180)
-        HelpBeside(p, c4, "Bar background", "Controls the dark empty/background portion of the timer bar.")
-
-        local c5 = ColorButton(p, "Menu background", function() return self.db.menuBackgroundColor end,
-            function(v) self.db.menuBackgroundColor = v end, true)
-        c5:SetPoint("TOPLEFT", 30, -275)
-
-        local c6 = ColorButton(p, "Menu panel colour", function() return self.db.menuPanelColor end,
-            function(v) self.db.menuPanelColor = v end, true)
-        c6:SetPoint("TOPLEFT", 370, -275)
-
-        local c7 = ColorButton(p, "Menu accent colour", function() return self.db.menuAccentColor end,
-            function(v) self.db.menuAccentColor = v end, false)
-        c7:SetPoint("TOPLEFT", 30, -345)
-        HelpBeside(p, c7, "Accent colour", "Used for active tabs, sliders, checkboxes and highlights.")
-
-        local c8 = ColorButton(p, "Putrefy bar", function() return self.db.putrefyColor end,
-            function(v) self.db.putrefyColor = v end, false)
-        c8:SetPoint("TOPLEFT", 370, -345)
-        HelpBeside(p, c8, "Putrefy colour", "Default #45FF1C. Used from 4.0 seconds upward.")
-
-        local reset = Button(p, "Reset Colours to Defaults", 190, 30, function()
-            self.db.soulColor = {0x1C/255, 0x28/255, 0xFF/255, 1}
-            self.db.blightColor = {0x9F/255, 0x1C/255, 0xFF/255, 1}
-            self.db.putrefyColor = {0x45/255, 0xFF/255, 0x1C/255, 1}
-            self.db.dangerColor = {0xFF/255, 0x00/255, 0x10/255, 1}
-            self.db.barBackgroundColor = {0.018, 0.018, 0.022, 1}
-            self.db.menuBackgroundColor = {0.025, 0.027, 0.034, 0.985}
-            self.db.menuPanelColor = {0.052, 0.055, 0.066, 0.98}
-            self.db.menuAccentColor = {0.62, 0.11, 1.00, 1}
-            self:ApplyDisplaySettings()
-            self:ApplyConfigTheme()
-            self:RefreshConfig()
-        end)
-        reset:SetPoint("TOPLEFT", 30, -430)
-
-        self.pages.Colors.controls = {c1,c2,c3,c4,c5,c6,c7,c8}
-    end
-
-    -- Profiles
-    do
-        local p = Page("Profiles")
-        PageTitle(p, "Profiles", "Save and switch between complete Blightfall setups.")
-
-        local current = FS(p, "Current profile: Default", 14, WHITE)
-        current:SetPoint("TOPLEFT", 30, -115)
-        self.currentProfileText = current
-
-        local name = CreateFrame("EditBox", nil, p, "BackdropTemplate")
-        name:SetSize(280, 30)
-        name:SetPoint("TOPLEFT", 30, -165)
-        Backdrop(name, {0.03,0.033,0.04,1})
-        name:SetAutoFocus(false)
-        name:SetFont(self.db.font or "Fonts\\FRIZQT__.TTF", 12, "")
-        table.insert(self.configEditBoxes, name)
-        name:SetTextInsets(10,8,0,0)
-        self.profileNameBox = name
-
-        local save = Button(p, "Save / Update", 130, 30, function()
-            local n = (name:GetText() or ""):match("^%s*(.-)%s*$")
-            if n == "" then n = self.db.activeProfile or "Default" end
-            self.db.profiles[n] = self:CaptureProfile()
-            self.db.activeProfile = n
-            self:RefreshConfig()
-        end)
-        save:SetPoint("LEFT", name, "RIGHT", 12, 0)
-
-        local load = Button(p, "Load", 90, 30, function()
-            local n = (name:GetText() or ""):match("^%s*(.-)%s*$")
-            if self.db.profiles[n] then
-                self:ApplyProfile(self.db.profiles[n])
-                self.db.activeProfile = n
-                self:RefreshConfig()
-            end
-        end)
-        load:SetPoint("LEFT", save, "RIGHT", 12, 0)
-
-        local reset = Button(p, "Reset to Defaults", 155, 30, function()
-            self:ResetToDefaults()
-            self:RefreshConfig()
-        end)
-        reset:SetPoint("TOPLEFT", 30, -225)
-    end
-
-    self.searchIndex = {
-        {name="Enable Blightfall", page="General", keywords="enable addon on off"},
-        {name="Lock display position", page="General", keywords="lock unlock drag position"},
-        {name="Show minimap button", page="General", keywords="minimap icon button"},
-        {name="Display mode", page="Display", keywords="bar icon only display"},
-        {name="Overall scale", page="Display", keywords="scale size"},
-        {name="Bar width", page="Display", keywords="width bar"},
-        {name="Bar style", page="Display", keywords="bar texture style quartz sharedmedia statusbar"},
-        {name="Reverse bar", page="Display", keywords="bar reverse direction fill"},
-        {name="Smooth bar", page="Display", keywords="bar smooth movement animation"},
-        {name="Bar text", page="Display", keywords="bar text hide remove show name countdown"},
-        {name="Bar text position", page="Display", keywords="bar text left center right position"},
-        {name="Icon countdown position", page="Display", keywords="icon countdown center below position"},
-        {name="Icon countdown text", page="Display", keywords="icon countdown text size colour color"},
-        {name="Bar height", page="Display", keywords="height bar"},
-        {name="Show spell icon", page="Display", keywords="icon bar spell"},
-        {name="Icon position", page="Display", keywords="icon left right"},
-        {name="Icon size", page="Display", keywords="icon size"},
-        {name="Moving marker", page="Display", keywords="spark marker glow"},
-        {name="Background opacity", page="Display", keywords="background opacity alpha"},
-        {name="Soul Reaper delay", page="Timing", keywords="soul reaper dark transformation timer delay"},
-        {name="Blightfall delay", page="Timing", keywords="blightfall soul reaper timer delay"},
-        {name="Putrefy delay", page="Timing", keywords="putrefy blightfall timer delay"},
-        {name="Countdown start", page="Timing", keywords="countdown start seconds voice"},
-        {name="Timer precision", page="Timing", keywords="precision decimals timer"},
-        {name="Audio mode", page="Sound", keywords="tts custom voice files sound"},
-        {name="Sound channel", page="Sound", keywords="master sfx dialog music ambience channel"},
-        {name="TTS volume", page="Sound", keywords="tts volume voice"},
-        {name="TTS speed", page="Sound", keywords="tts speed rate voice"},
-        {name="TTS voice", page="Sound", keywords="tts voice selection"},
-        {name="Font", page="Fonts", keywords="font typeface sharedmedia weakauras text"},
-        {name="Font sizes", page="Fonts", keywords="font text size timer"},
-        {name="Bar and icon borders", page="Display", keywords="border bar icon thickness colour color style"},
-        {name="Bar border thickness", page="Display", keywords="bar border thickness size colour color"},
-        {name="Icon border thickness", page="Display", keywords="icon border thickness size colour color"},
-        {name="Soul Reaper colour", page="Colors", keywords="soul reaper blue hex color colour"},
-        {name="Blightfall colour", page="Colors", keywords="blightfall purple hex color colour"},
-        {name="Putrefy colour", page="Colors", keywords="putrefy green hex color colour"},
-        {name="Danger colour", page="Colors", keywords="red under 4 countdown color colour"},
-        {name="Bar background colour", page="Colors", keywords="bar background color colour"},
-        {name="Menu background colour", page="Colors", keywords="menu ui background color colour"},
-        {name="Menu accent colour", page="Colors", keywords="accent slider checkbox tab color colour"},
-        {name="Minimap mouseover", page="General", keywords="minimap mouseover hover hidden icon"},
-        {name="Soul Reaper timer module", page="General", keywords="soul reaper timer module enable disable"},
-        {name="Blightfall timer module", page="General", keywords="blightfall timer module enable disable"},
-        {name="Putrefy timer module", page="General", keywords="putrefy timer module enable disable"},
-        {name="Disable in dungeons", page="General", keywords="dungeon instance party disable helper"},
-        {name="Profiles", page="Profiles", keywords="profile preset save load"},
-    }
-
-    self:ShowPage("General")
+    return Track(wrap)
 end
 
-function BFH:CaptureProfile()
-    local omit = {
-        profiles=true,
-        activeProfile=true,
-        configWidth=true,
-        configHeight=true,
-        minimapAngle=true,
-    }
+---------------------------------------------------------------------------
+-- Shared option lists
+---------------------------------------------------------------------------
+
+local function FontItems()
     local out = {}
-    for k,v in pairs(self.db) do
-        if not omit[k] then out[k] = self.DeepCopy(v) end
+    for _, f in ipairs(BFH:GetFonts()) do
+        out[#out + 1] = {text = f.name, value = f.path}
     end
     return out
 end
 
-function BFH:ApplyProfile(profile)
-    for k,v in pairs(profile) do self.db[k] = self.DeepCopy(v) end
-    self:ApplyDisplaySettings()
-    self:UpdateMinimapButton()
+local OUTLINES = {
+    {text = "None", value = ""},
+    {text = "Outline", value = "OUTLINE"},
+    {text = "Thick outline", value = "THICKOUTLINE"},
+    {text = "Monochrome", value = "MONOCHROME"},
+    {text = "Monochrome + outline", value = "MONOCHROME,OUTLINE"},
+}
+
+local function SoundItems()
+    local out = {}
+    for _, s in ipairs(BFH.SOUNDS) do out[#out + 1] = {text = s.name, value = s.key} end
+    return out
 end
 
-function BFH:ResetToDefaults()
-    local profiles = self.db.profiles
-    local active = self.db.activeProfile
-    local cw, ch = self.db.configWidth, self.db.configHeight
-    local angle = self.db.minimapAngle
-
-    for k in pairs(self.db) do self.db[k] = nil end
-    self.CopyDefaults(self.defaults, self.db)
-
-    self.db.profiles = profiles or {Default={}}
-    self.db.activeProfile = active or "Default"
-    self.db.configWidth, self.db.configHeight = cw or 1040, ch or 700
-    self.db.minimapAngle = angle or 225
-
-    self:ApplyDisplaySettings()
-    self:UpdateMinimapButton()
+local function PresetItems()
+    local out = {}
+    for _, p in ipairs(BFH.SOUND_PRESETS) do out[#out + 1] = {text = p.name, value = p.key} end
+    out[#out + 1] = {text = "Custom", value = "custom"}
+    return out
 end
 
-function BFH:ShowPage(name)
-    self.currentPage = name
-    self.searchHolder:Hide()
-
-    for n, data in pairs(self.pages) do
-        data.holder:SetShown(n == name)
+local function FontName(path)
+    for _, f in ipairs(BFH:GetFonts()) do
+        if f.path == path then return f.name end
     end
+    return path
+end
 
-    for n, b in pairs(self.navButtons) do
-        if n == name then
-            b:SetBackdropColor(0.12,0.055,0.18,1)
-            b:SetBackdropBorderColor(unpack(ACCENT))
+-- Font / size / outline / colour / shadow / offset block shared by the
+-- countdown and spell-name sections.
+local function TextStyleBlock(page, cfg, offsetRange)
+    Dropdown(page, "Font", 220, FontItems,
+        function() return cfg().font end,
+        function(v) cfg().font = v; cfg().fontName = FontName(v) end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Dropdown(page, "Outline", 220, OUTLINES,
+        function() return cfg().outline end,
+        function(v) cfg().outline = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 56)
+
+    Slider(page, "Size", 6, 64, 1,
+        function() return cfg().size end,
+        function(v) cfg().size = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    ColorSwatch(page, "Colour",
+        function() return cfg().color end,
+        function(v) cfg().color = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 18)
+    Advance(page, 52)
+
+    Checkbox(page, "Shadow",
+        function() return cfg().shadow end,
+        function(v) cfg().shadow = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    ColorSwatch(page, "Shadow colour",
+        function() return cfg().shadowColor end,
+        function(v) cfg().shadowColor = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 3)
+    Advance(page, 36)
+
+    Slider(page, "X offset", -offsetRange, offsetRange, 1,
+        function() return cfg().x end,
+        function(v) cfg().x = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Slider(page, "Y offset", -offsetRange, offsetRange, 1,
+        function() return cfg().y end,
+        function(v) cfg().y = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 56)
+end
+
+---------------------------------------------------------------------------
+-- Pages
+---------------------------------------------------------------------------
+
+local function BuildGeneral(page)
+    local db = function() return BFH.db end
+
+    local status = page:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    At(page, status)
+    BFH.talentStatusText = status
+    Advance(page, 30)
+
+    local move = Button(page, "Move", 110, function()
+        BFH:SetLocked(not BFH.db.locked)
+    end)
+    At(page, move)
+    BFH.moveButton = move
+    local resetPos = Button(page, "Reset position", 130, function()
+        BFH.db.point, BFH.db.relativePoint = "CENTER", "CENTER"
+        BFH.db.x, BFH.db.y = 0, 120
+        BFH:ApplyPosition()
+    end)
+    resetPos:SetPoint("LEFT", move, "RIGHT", 8, 0)
+    Advance(page, 36)
+
+    Header(page, "Minimap")
+    Checkbox(page, "Show minimap button",
+        function() return db().showMinimapButton end,
+        function(v) db().showMinimapButton = v; BFH:UpdateMinimapButton() end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Checkbox(page, "Only show on mouseover",
+        function() return db().minimapMouseoverOnly end,
+        function(v) db().minimapMouseoverOnly = v; BFH:UpdateMinimapButton() end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 36)
+
+    Header(page, "Timers")
+    Note(page, "Take your trinket's effect duration into account; your timers should line up with it too.")
+    Advance(page, 28)
+    Slider(page, "Soul Reaper after Dark Transformation", 1, 15, 0.1,
+        function() return db().soulDelay end,
+        function(v) db().soulDelay = v end,
+        function(v) return string.format("%.1fs", v) end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Slider(page, "Blightfall after Soul Reaper", 1, 8, 0.1,
+        function() return db().blightDelay end,
+        function(v) db().blightDelay = v end,
+        function(v) return string.format("%.1fs", v) end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 52)
+    Checkbox(page, "Show Putrefy after Blightfall",
+        function() return db().showPutrefy end,
+        function(v) db().showPutrefy = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 36)
+
+    Header(page, "Preview")
+    local p1 = Button(page, "Soul Reaper", 130, function() BFH:StartPreview("SOUL") end)
+    At(page, p1)
+    local p2 = Button(page, "Blightfall", 130, function() BFH:StartPreview("BLIGHT") end)
+    p2:SetPoint("LEFT", p1, "RIGHT", 8, 0)
+    local p3 = Button(page, "Putrefy", 130, function() BFH:StartPreview("PUTREFY") end)
+    p3:SetPoint("LEFT", p2, "RIGHT", 8, 0)
+    local stop = Button(page, "Stop", 100, function() BFH:StopPreview() end)
+    stop:SetPoint("LEFT", p3, "RIGHT", 8, 0)
+    Advance(page, 32)
+    Note(page, "Previews loop until you press Stop or close this window. Sounds play on the first loop only.")
+    Advance(page, 36)
+
+    local credit = page:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    credit:SetText("Blightfall v" .. BFH.VERSION .. "  -  Created by JSAL")
+    At(page, credit)
+    Advance(page, 24)
+end
+
+local function BuildStyle(page)
+    local db = function() return BFH.db end
+
+    Header(page, "Animation")
+    local scale = Slider(page, "Size", 1, 300, 1,
+        function() return db().scale end,
+        function(v) db().scale = v end,
+        function(v) return v .. "%" end)
+    scale:SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    local x1 = Button(page, "1x", 44, function() db().scale = 100; Changed() end)
+    x1:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 14)
+    local x2 = Button(page, "2x", 44, function() db().scale = 200; Changed() end)
+    x2:SetPoint("LEFT", x1, "RIGHT", 4, 0)
+    local x3 = Button(page, "3x", 44, function() db().scale = 300; Changed() end)
+    x3:SetPoint("LEFT", x2, "RIGHT", 4, 0)
+    Advance(page, 52)
+
+    Checkbox(page, "Small Putrefy cards",
+        function() return db().putrefySmall end,
+        function(v) db().putrefySmall = v; BFH:PreloadTextures() end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 34)
+    Checkbox(page, "Flash near the end of loading",
+        function() return db().flashEnabled end,
+        function(v) db().flashEnabled = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Slider(page, "Start flashing at", 1, 10, 1,
+        function() return db().flashAt end,
+        function(v) db().flashAt = v end,
+        function(v) return v .. "s left" end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 52)
+
+    Header(page, "Countdown text")
+    Checkbox(page, "Show countdown while loading",
+        function() return db().counter.show end,
+        function(v) db().counter.show = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Dropdown(page, "Precision", 220,
+        {{text = "Whole seconds", value = 0}, {text = "1 decimal", value = 1}, {text = "2 decimals", value = 2}},
+        function() return db().counter.precision end,
+        function(v) db().counter.precision = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 56)
+    TextStyleBlock(page, function() return db().counter end, 200)
+
+    Header(page, "Spell name")
+    Checkbox(page, "Show spell name under the animation",
+        function() return db().label.show end,
+        function(v) db().label.show = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 36)
+    for _, stage in ipairs({"SOUL", "BLIGHT", "PUTREFY"}) do
+        NameEditor(page, BFH.DEFAULT_NAMES[stage], stage)
+            :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+        Advance(page, 32)
+    end
+    Advance(page, 8)
+    TextStyleBlock(page, function() return db().label end, 200)
+
+    Header(page, "Ready sound")
+    Dropdown(page, "Preset", 220, PresetItems,
+        function() return BFH:GetMatchingPreset() end,
+        function(v) if v ~= "custom" then BFH:ApplySoundPreset(v) end end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Advance(page, 56)
+    for i, stage in ipairs({"SOUL", "BLIGHT"}) do
+        local dd = Dropdown(page, BFH.DEFAULT_NAMES[stage], 220, SoundItems,
+            function() return db().readySound[stage] end,
+            function(v)
+                db().readySound[stage] = v
+                BFH:PlaySoundEntry(v)
+            end)
+        dd:SetPoint("TOPLEFT", page, "TOPLEFT", i == 1 and 16 or COL2, page.y)
+    end
+    Advance(page, 56)
+
+    Header(page, "Spoken countdown")
+    Checkbox(page, "Spoken countdown",
+        function() return db().soundEnabled end,
+        function(v) db().soundEnabled = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Slider(page, "Starts at", 1, 10, 1,
+        function() return db().countdownStart end,
+        function(v) db().countdownStart = v end,
+        function(v) return v .. "s" end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 52)
+    Dropdown(page, "Voice", 220,
+        {{text = "Voice files (1-10)", value = "FILES"}, {text = "WoW text-to-speech", value = "TTS"}},
+        function() return db().audioMode end,
+        function(v) db().audioMode = v; if v ~= "TTS" then BFH:StopTTS() end end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Dropdown(page, "Sound channel", 220,
+        {
+            {text = "Master", value = "Master"},
+            {text = "Sound effects", value = "SFX"},
+            {text = "Dialog", value = "Dialog"},
+            {text = "Music", value = "Music"},
+            {text = "Ambience", value = "Ambience"},
+        },
+        function() return db().soundChannel end,
+        function(v) db().soundChannel = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 56)
+
+    Slider(page, "Text-to-speech volume", 0, 100, 1,
+        function() return db().ttsVolume end,
+        function(v) db().ttsVolume = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Slider(page, "Text-to-speech speed", -10, 10, 1,
+        function() return db().ttsRate end,
+        function(v) db().ttsRate = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 52)
+    Dropdown(page, "Text-to-speech voice", 220,
+        function()
+            local out = {}
+            for _, v in ipairs(BFH:GetTTSVoices()) do out[#out + 1] = {text = v.name, value = v.voiceID} end
+            return out
+        end,
+        function() return BFH:GetTTSVoiceID() end,
+        function(v) db().ttsVoiceID = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    local test = Button(page, "Test voice", 110, function() BFH:SpeakText("3, 2, 1") end)
+    test:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 16)
+    Advance(page, 60)
+end
+
+---------------------------------------------------------------------------
+-- Window
+---------------------------------------------------------------------------
+
+local function CreatePage(parent)
+    local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 6, -6)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 6)
+    local page = CreateFrame("Frame", nil, scroll)
+    page:SetSize(CONTENT_WIDTH, 100)
+    page.y = -10
+    scroll:SetScrollChild(page)
+    scroll.page = page
+    return scroll
+end
+
+function BFH:InitializeConfig()
+    if self.config then return end
+
+    local f = CreateFrame("Frame", "BlightfallConfig", UIParent, "ButtonFrameTemplate")
+    if ButtonFrameTemplate_HidePortrait then ButtonFrameTemplate_HidePortrait(f) end
+    if ButtonFrameTemplate_HideButtonBar then ButtonFrameTemplate_HideButtonBar(f) end
+    f:SetSize(WIDTH, HEIGHT)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetToplevel(true)
+    f:SetClampedToScreen(true)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    if f.SetTitle then f:SetTitle("Blightfall") elseif f.TitleText then f.TitleText:SetText("Blightfall") end
+    f:Hide()
+    tinsert(UISpecialFrames, "BlightfallConfig")
+
+    local inset = f.Inset or f
+    local general = CreatePage(inset)
+    local style = CreatePage(inset)
+    BuildGeneral(general.page)
+    BuildStyle(style.page)
+    general.page:SetHeight(-general.page.y + 10)
+    style.page:SetHeight(-style.page.y + 10)
+    f.pages = {general, style}
+
+    local names = {"General", "Style"}
+    f.Tabs = {}
+    for i, name in ipairs(names) do
+        local tab = CreateFrame("Button", "BlightfallConfigTab" .. i, f, "PanelTabButtonTemplate")
+        tab:SetID(i)
+        tab:SetText(name)
+        if i == 1 then
+            tab:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 12, 2)
         else
-            b:SetBackdropColor(0.075,0.078,0.092,1)
-            b:SetBackdropBorderColor(0.15,0.16,0.19,1)
+            tab:SetPoint("LEFT", f.Tabs[i - 1], "RIGHT", 4, 0)
         end
+        tab:SetScript("OnClick", function(self) BFH:ShowConfigPage(self:GetID()) end)
+        if PanelTemplates_TabResize then PanelTemplates_TabResize(tab, 0) end
+        f.Tabs[i] = tab
     end
+    PanelTemplates_SetNumTabs(f, #names)
 
-    self:RefreshConfig()
+    f:SetScript("OnShow", function()
+        BFH:RefreshConfig()
+        -- Show an animation right away so it can be positioned and styled.
+        if not BFH.stage then BFH:StartPreview("SOUL") end
+    end)
+    f:SetScript("OnHide", function()
+        BFH:StopPreview()
+        if not BFH.db.locked then BFH:SetLocked(true) end
+    end)
+
+    self.config = f
+    self:ShowConfigPage(1)
 end
 
-function BFH:RefreshSearch()
-    if not self.searchHolder then return end
-    local q = self.searchText or ""
-
-    if q == "" then
-        self.searchHolder:Hide()
-        if self.pages[self.currentPage] then
-            self.pages[self.currentPage].holder:Show()
-        end
-        return
-    end
-
-    for _, data in pairs(self.pages) do data.holder:Hide() end
-    self.searchHolder:Show()
-
-    local matches = {}
-    for _, item in ipairs(self.searchIndex or {}) do
-        local haystack = (item.name.." "..item.page.." "..item.keywords):lower()
-        if haystack:find(q, 1, true) then table.insert(matches, item) end
-    end
-
-    local y = -105
-    for i, item in ipairs(matches) do
-        local row = self.searchRows[i]
-        if not row then
-            row = Button(self.searchPage, "", 560, 42, nil)
-            row.label:ClearAllPoints()
-            row.label:SetPoint("LEFT", 12, 0)
-            row.label:SetJustifyH("LEFT")
-            self.searchRows[i] = row
-        end
-        row:SetPoint("TOPLEFT", 30, y)
-        row.label:SetText(item.name.."   |cff888a95"..item.page.."|r")
-        row:SetScript("OnClick", function()
-            self.searchText = ""
-            self:ShowPage(item.page)
-        end)
-        row:Show()
-        y = y - 48
-    end
-
-    for i = #matches + 1, #self.searchRows do self.searchRows[i]:Hide() end
-    self.searchPage:SetHeight(math.max(760, -y + 100))
-    for _, button in ipairs(self.closeButtons or {}) do
-        if button.UpdateAccent then button:UpdateAccent() end
-    end
+function BFH:ShowConfigPage(id)
+    local f = self.config
+    for i, page in ipairs(f.pages) do page:SetShown(i == id) end
+    PanelTemplates_SetTab(f, id)
 end
 
 function BFH:RefreshConfig()
-    if not self.config then return end
-    self:ApplyConfigFont()
-    self:ApplyConfigTheme()
-
-    for _, data in pairs(self.pages) do
-        if data.controls then
-            for _, control in ipairs(data.controls) do
-                if control.Refresh then control:Refresh() end
-            end
-        end
-    end
-
-    if self.barStyleButton then
-        self.barStyleButton.label:SetText(self.db.barTextureName or "Blizzard")
-    end
-
-    if self.fontButton then
-        self.fontButton.label:SetText(self.db.fontName or "Friz Quadrata")
-        local path = self.db.font or "Fonts\\FRIZQT__.TTF"
-        if not self.fontButton.label:SetFont(path, 12, "") then
-            self.fontButton.label:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
-        end
-    end
-
-    if self.currentProfileText then
-        self.currentProfileText:SetText("Current profile: "..(self.db.activeProfile or "Default"))
+    if not self.config or not self.config:IsShown() then return end
+    for _, c in ipairs(controls) do
+        if c.Refresh then c:Refresh() end
     end
     if self.talentStatusText then
-        local sr = self:HasSoulReaper()
-        local bf = self:HasBlightfall()
-        local pu = self:HasPutrefy()
-        self.talentStatusText:SetText(
-            "Talent detection: Soul Reaper " .. (sr and "|cff45ff45active|r" or "|cffff4040not known|r")
-            .. "   •   Blightfall " .. (bf and "|cff45ff45active|r" or "|cffff4040not known|r")
-            .. "   •   Putrefy " .. (pu and "|cff45ff45active|r" or "|cffff4040not known|r")
-        )
+        local function Mark(known) return known and "|cff45ff45known|r" or "|cffff4040not known|r" end
+        self.talentStatusText:SetText("Talents:  Soul Reaper " .. Mark(self:HasSoulReaper())
+            .. "   Blightfall " .. Mark(self:HasBlightfall())
+            .. "   Putrefy " .. Mark(self:HasPutrefy()))
     end
-end
-
-function BFH:StartAutomaticMenuPreview()
-    -- Fail-safe: the settings window must never break just because preview
-    -- functionality is unavailable or another module failed to initialise.
-    if type(self.ShowPreview) ~= "function" or not self.db then
-        return
-    end
-
-    local stage
-    if self.db.enableSoulReaperBar ~= false then
-        stage = "SOUL"
-    elseif self.db.enableBlightfallBar ~= false then
-        stage = "BLIGHT"
-    elseif self.db.enablePutrefyBar ~= false then
-        stage = "PUTREFY"
-    else
-        stage = "SOUL"
-    end
-
-    local ok, err = pcall(self.ShowPreview, self, stage)
-    if not ok then
-        -- Keep the options window usable even if preview itself errors.
-        if self.StopStage then
-            pcall(self.StopStage, self)
-        end
+    if self.moveButton then
+        self.moveButton:SetText(self.db.locked and "Move" or "Lock")
     end
 end
 
 function BFH:ToggleConfig()
-    if not self.config then return end
-
-    if self.config:IsShown() then
-        if self.fontPicker then self.fontPicker:Hide() end
-        self.config:Hide()
-        if type(self.StopStage) == "function" then
-            self:StopStage()
-        end
-    else
-        -- Always open centered as requested.
-        self.config:ClearAllPoints()
-        self.config:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-        self.config:SetSize(
-            math.max(900, tonumber(self.db.configWidth) or 1040),
-            math.max(600, tonumber(self.db.configHeight) or 700)
-        )
-        self.config:Show()
-        self:RefreshConfig()
-
-        if C_Timer and type(C_Timer.After) == "function" then
-            C_Timer.After(0, function()
-                if BFH.config and BFH.config:IsShown() then
-                    BFH:StartAutomaticMenuPreview()
-                end
-            end)
-        else
-            self:StartAutomaticMenuPreview()
-        end
-    end
+    self:InitializeConfig()
+    self.config:SetShown(not self.config:IsShown())
 end
