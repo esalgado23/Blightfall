@@ -196,12 +196,18 @@ function BFH:InitializeDisplay()
     textFrame:SetAllPoints(display)
     textFrame:SetFrameLevel(display:GetFrameLevel() + 10)
 
-    counter = textFrame:CreateFontString(nil, "OVERLAY")
-    counter:SetJustifyH("CENTER")
-    label = textFrame:CreateFontString(nil, "OVERLAY")
-    label:SetJustifyH("CENTER")
-    perfect = textFrame:CreateFontString(nil, "OVERLAY")
-    perfect:SetJustifyH("CENTER")
+    -- A FontString with no font errors on SetText, so every one of these gets
+    -- a fallback before it is used; ApplyDisplaySettings styles them after.
+    local function NewText()
+        local fs = textFrame:CreateFontString(nil, "OVERLAY")
+        fs:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+        fs:SetJustifyH("CENTER")
+        return fs
+    end
+
+    counter = NewText()
+    label = NewText()
+    perfect = NewText()
     perfect:SetText("PERFECT COMBO")
     perfect:Hide()
 
