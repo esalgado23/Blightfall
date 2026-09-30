@@ -369,7 +369,7 @@ function BFH:PlayOnUse(stage)
     else
         key = PREFIX[stage] .. "_onuse"
     end
-    if stage == "SOUL" and AudioAllowed() then self:PlayReaperBurn() end
+    if stage == "PUTREFY" and AudioAllowed() then self:PlayCardBurn() end
     outro:Play(key, {
         fps = FPS,
         onDone = function()

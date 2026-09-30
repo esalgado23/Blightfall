@@ -5,7 +5,7 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 105
+BFH.SCHEMA = 106
 -- Saved settings older than this are from before the animation redesign.
 local RESET_BELOW_SCHEMA = 102
 
@@ -106,7 +106,7 @@ BFH.defaults = {
         BLIGHT_END = "none",
         PUTREFY_END = "none",
     },
-    reaperBurn = true,
+    cardBurn = true,
     celebrationEnabled = true,
     celebrationSound = "helios_rap",
     celebrationOffInstances = false,
@@ -166,8 +166,8 @@ BFH.SOUNDS = {
     {key = "death_card", name = "Death Card", file = "Sounds\\isaacc_death_card.ogg", hidden = true},
 }
 
--- One of these plays at random when Soul Reaper appears, outside combo mode.
-BFH.REAPER_BURN = {"card_burn", "card_burn_2", "card_burn_3", "death_card"}
+-- One of these plays at random as a Putrefy card burns, outside combo mode.
+BFH.CARD_BURN = {"card_burn", "card_burn_2", "card_burn_3", "death_card"}
 
 BFH.SOUND_BY_KEY = {}
 for _, entry in ipairs(BFH.SOUNDS) do BFH.SOUND_BY_KEY[entry.key] = entry end
@@ -290,11 +290,11 @@ function BFH:PlayEvent(event)
     if key and key ~= "none" then self:PlaySoundEntry(key) end
 end
 
--- Flavour sound for Soul Reaper's OnUse, i.e. the moment the card burns.
--- Combo presets bring their own audio, so it stays out of their way.
-function BFH:PlayReaperBurn()
-    if self.comboMode or not self.db.reaperBurn then return end
-    local list = self.REAPER_BURN
+-- Flavour sound for the burning Putrefy card. Combo presets bring their own
+-- audio, so it stays out of their way.
+function BFH:PlayCardBurn()
+    if self.comboMode or not self.db.cardBurn then return end
+    local list = self.CARD_BURN
     self:PlaySoundEntry(list[math.random(#list)])
 end
 
@@ -630,6 +630,11 @@ BFH:SetScript("OnEvent", function(self, event, ...)
                 -- the new recommendations.
                 if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
                 if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
+            end
+            if saved < 106 then
+                -- The card burn moved from Soul Reaper to Putrefy.
+                BlightfallDB.cardBurn = BlightfallDB.reaperBurn
+                BlightfallDB.reaperBurn = nil
             end
             if saved < 105 then
                 -- The sound library lost its Blizzard entries and most
