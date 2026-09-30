@@ -3,28 +3,21 @@ if not BFH then return end
 
 local BUTTON_SIZE = 32
 
-local RIM_OFFSET = 10
-
--- Buttons ride a circle slightly wider than the minimap, as other addons do.
-local function GetMinimapRadius()
-    if not Minimap then return 70 + RIM_OFFSET end
-    local w = Minimap:GetWidth() or 140
-    local h = Minimap:GetHeight() or 140
-    return math.max(w, h) * 0.5 + RIM_OFFSET
-end
+-- The radius other minimap buttons sit at. Measuring the minimap instead
+-- drifts once another addon resizes it, which pushes the button off on its own.
+local RADIUS = 80
 
 -- Places the button on that circle at the saved angle.
 local function PositionButton(button, angle)
     if not Minimap then return end
-    local radius = GetMinimapRadius()
     local r = math.rad(angle or 225)
     button:ClearAllPoints()
     button:SetPoint(
         "CENTER",
         Minimap,
         "CENTER",
-        math.cos(r) * radius,
-        math.sin(r) * radius
+        math.cos(r) * RADIUS,
+        math.sin(r) * RADIUS
     )
 end
 
