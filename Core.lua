@@ -240,7 +240,7 @@ function BFH:GetFonts()
     return list
 end
 
-local function RegisterSharedMedia()
+local function RegisterSharedMedia(_)
     local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
     if not LSM then return end
     LSM:Register("font", "Oldbitz", FONT_OLDBITZ)
@@ -665,11 +665,6 @@ BFH:SetScript("OnEvent", function(self, event, ...)
         BlightfallDB.schemaVersion = self.SCHEMA
         self.db = BlightfallDB
 
-        self:RefreshSoundState()
-        RegisterSharedMedia()
-        if self.InitializeDisplay then self:InitializeDisplay() end
-        if self.InitializeMinimapButton then self:InitializeMinimapButton() end
-
         SLASH_BLIGHTFALL1 = "/blightfall"
         SLASH_BLIGHTFALL2 = "/bf"
         SlashCmdList.BLIGHTFALL = function(msg)
@@ -685,13 +680,35 @@ BFH:SetScript("OnEvent", function(self, event, ...)
             elseif msg == "debug" then
                 self.debug = not self.debug
                 print("|cff9f1cffBlightfall|r debug " .. (self.debug and "on" or "off"))
+            elseif msg == "status" then
+                print("|cff9f1cffBlightfall|r v" .. self.VERSION
+                    .. " | startup: " .. (self.startupError or "ok")
+                    .. " | animations: " .. (ns.AnimData and "loaded" or "MISSING"))
             else
                 self:ToggleConfig()
             end
         end
 
-        self:RefreshTalentState()
-        print("|cff9f1cffBlightfall|r v" .. self.VERSION .. " loaded. Type |cffffffff/bf|r for settings.")
+        -- Start-up runs after the slash command exists, and each step is
+        -- guarded so a failure still leaves /bf usable to report it.
+        local function Step(name, fn)
+            if type(fn) ~= "function" then return end
+            local ok, err = pcall(fn, self)
+            if not ok then
+                self.startupError = name .. ": " .. tostring(err)
+                print("|cffff4040Blightfall|r failed during " .. name .. ": " .. tostring(err))
+            end
+        end
+
+        Step("sound setup", self.RefreshSoundState)
+        Step("shared media", RegisterSharedMedia)
+        Step("display", self.InitializeDisplay)
+        Step("minimap button", self.InitializeMinimapButton)
+        Step("talents", self.RefreshTalentState)
+
+        if not self.startupError then
+            print("|cff9f1cffBlightfall|r v" .. self.VERSION .. " loaded. Type |cffffffff/bf|r for settings.")
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         self:ResetSequence()
         self:RefreshTalentState()
