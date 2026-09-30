@@ -549,12 +549,12 @@ local function BuildStyle(page)
     Note(page, "Changing a sound switches the preset to Custom.")
     Advance(page, 30)
 
-    Checkbox(page, "Burning card sound when Soul Reaper appears",
+    Checkbox(page, "Burning card sound when Soul Reaper is cast",
         function() return db().reaperBurn end,
         function(v) db().reaperBurn = v end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
     Advance(page, 26)
-    Note(page, "One of four card sounds, picked at random. Combo presets use their own audio instead.", 34)
+    Note(page, "Plays with the burn animation, one of four card sounds picked at random. Combo presets use their own audio instead.", 34)
     Advance(page, 32)
 
     Dropdown(page, "Sound channel", 220, CHANNELS,

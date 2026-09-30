@@ -145,8 +145,21 @@ BFH.SOUNDS = {
     {key = "zelda_shrine", name = "Zelda Shrine", file = "Sounds\\zelda_shrine.ogg", dur = 3.20},
     {key = "zelda_sensor", name = "Zelda Sensor", file = "Sounds\\zelda_sensor.ogg", dur = 2.53},
     {key = "zelda_blip", name = "Zelda Blip", file = "Sounds\\zelda_blip.ogg", dur = 0.17},
-    {key = "bomb_loading", name = "Bomb Loading", file = "Sounds\\bomb_loading.mp3", dur = 0.60},
-    {key = "bomb_ready", name = "Bomb Ready", file = "Sounds\\bomb_getCar.mp3", dur = 0.58},
+    {key = "bomb_loading", name = "Bomb Loading", file = "Sounds\\bomb_loading.ogg", dur = 0.60},
+    {key = "bomb_ready", name = "Bomb Ready", file = "Sounds\\bomb_car.ogg", dur = 0.56},
+    {key = "isaac_1up", name = "Isaac 1up", file = "Sounds\\isaac_1up.ogg", dur = 0.29},
+    {key = "isaac_angel_blast", name = "Isaac Angel Blast", file = "Sounds\\isaac_angel_blast1.ogg", dur = 2.11},
+    {key = "isaac_battery", name = "Isaac Battery Charge", file = "Sounds\\isaac_battery_charge.ogg", dur = 0.69},
+    {key = "isaac_beep", name = "Isaac Beep", file = "Sounds\\isaac_beep.ogg", dur = 0.08},
+    {key = "isaac_laser", name = "Isaac Laser", file = "Sounds\\isaac_laser.ogg", dur = 1.47},
+    {key = "isaac_lightning", name = "Isaac Lightning", file = "Sounds\\isaac_lightning.ogg", dur = 0.74},
+    {key = "isaac_plop", name = "Isaac Plop", file = "Sounds\\isaac_plop.ogg", dur = 0.14},
+    {key = "isaac_reaper", name = "Isaac Reaper", file = "Sounds\\isaac_reaper.ogg", dur = 2.40},
+    {key = "isaac_soul", name = "Isaac Soul", file = "Sounds\\isaac_soul.ogg", dur = 0.84},
+    {key = "isaac_thumbs_down", name = "Isaac Thumbs Down", file = "Sounds\\isaac_thumbs_down.ogg", dur = 0.38},
+    {key = "isaac_thumbs_up", name = "Isaac Thumbs Up", file = "Sounds\\isaac_thumbs_up.ogg", dur = 0.19},
+    {key = "isaac_unholy", name = "Isaac Unholy", file = "Sounds\\isaac_unholy.ogg", dur = 1.42},
+    {key = "isaac_vamp", name = "Isaac Vamp", file = "Sounds\\isaac_vamp.ogg", dur = 0.69},
     {key = "card_burn", name = "Card Burn", file = "Sounds\\card_burn.ogg", hidden = true},
     {key = "card_burn_2", name = "Card Burn 2", file = "Sounds\\card_burn_2.ogg", hidden = true},
     {key = "card_burn_3", name = "Card Burn 3", file = "Sounds\\card_burn_3.ogg", hidden = true},
@@ -277,8 +290,8 @@ function BFH:PlayEvent(event)
     if key and key ~= "none" then self:PlaySoundEntry(key) end
 end
 
--- Flavour sound layered under Soul Reaper's entrance. Combo presets bring
--- their own audio, so it stays out of their way.
+-- Flavour sound for Soul Reaper's OnUse, i.e. the moment the card burns.
+-- Combo presets bring their own audio, so it stays out of their way.
 function BFH:PlayReaperBurn()
     if self.comboMode or not self.db.reaperBurn then return end
     local list = self.REAPER_BURN

@@ -318,7 +318,6 @@ function BFH:ShowStage(stage)
         fadeIn = LOADING_FADE,
         onDone = function() BFH:EnterReady() end,
     })
-    if stage == "SOUL" and AudioAllowed() then self:PlayReaperBurn() end
     self:UpdateTexts()
 end
 
@@ -370,6 +369,7 @@ function BFH:PlayOnUse(stage)
     else
         key = PREFIX[stage] .. "_onuse"
     end
+    if stage == "SOUL" and AudioAllowed() then self:PlayReaperBurn() end
     outro:Play(key, {
         fps = FPS,
         onDone = function()
