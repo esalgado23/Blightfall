@@ -7,14 +7,12 @@ local CELL = 128
 local LOADING_FADE = 1.0
 local PUTREFY_FADE = 0.15
 local PREVIEW_IDLE_TIME = 2.0
-local PUTREFY_TIME = 5.0 -- time at full opacity before Putrefy leaves on its own
-local SOUL_TIMEOUT = 15.0 -- Soul Reaper leaves this long after Dark Transformation
+local PUTREFY_TIME = 5.0
+local SOUL_TIMEOUT = 15.0
 local SOUL_FADE_OUT = 0.5
 
 local PREFIX = {SOUL = "reaper", BLIGHT = "blight"}
 
--- The finale sheet was drawn on a 188px canvas, so it is shown that much
--- larger than the 128px spell animations to keep the artist's proportions.
 local CELEBRATION_FPS = 60
 local CELEBRATION_RATIO = 188 / 128
 
@@ -27,13 +25,10 @@ local function Clamp(v, lo, hi)
     return v
 end
 
----------------------------------------------------------------------------
--- Flipbook layer: plays one animation from AnimData pages on a texture.
----------------------------------------------------------------------------
-
 local Layer = {}
 Layer.__index = Layer
 
+-- One flipbook layer: a frame and the texture showing a single frame.
 local function NewLayer(parent, levelOffset, freeSize)
     local l = setmetatable({}, Layer)
     l.frame = CreateFrame("Frame", nil, parent)
@@ -44,7 +39,6 @@ local function NewLayer(parent, levelOffset, freeSize)
     l.tex = l.frame:CreateTexture(nil, "ARTWORK")
     l.tex:SetAllPoints()
 
-    -- Additive copy of the current frame, used for the optional flash.
     l.glow = l.frame:CreateTexture(nil, "OVERLAY")
     l.glow:SetAllPoints()
     l.glow:SetBlendMode("ADD")
@@ -52,6 +46,7 @@ local function NewLayer(parent, levelOffset, freeSize)
     return l
 end
 
+-- Points the texture at frame i, swapping atlas page when it crosses one.
 function Layer:SetFrame(i)
     if i == self.lastFrame then return end
     self.lastFrame = i
@@ -62,7 +57,7 @@ function Layer:SetFrame(i)
     local cols, uv = page[2], page[3]
 
     if self.lastPath ~= page[1] then
-        -- NEAREST keeps the pixel art crisp at any scale.
+
         self.tex:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
         self.glow:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
         self.lastPath = page[1]
@@ -73,7 +68,7 @@ function Layer:SetFrame(i)
     self.glow:SetTexCoord(col * uv, (col + 1) * uv, row * uv, (row + 1) * uv)
 end
 
--- opts: duration (whole animation) or fps, loop, fadeIn, delay, onDone
+-- Starts an animation. opts: duration or fps, loop, fadeIn, delay, onDone.
 function Layer:Play(key, opts)
     local data = ns.AnimData and ns.AnimData[key]
     if not data then
@@ -114,6 +109,7 @@ function Layer:PendingTime()
     return 0
 end
 
+-- Advances the animation and applies its fades.
 function Layer:Update(elapsed)
     if not self.playing then return end
     self.t = self.t + elapsed
@@ -152,7 +148,7 @@ function Layer:Update(elapsed)
     self.frame:SetAlpha(alpha)
 end
 
--- Fade from the current opacity to 0, then stop and call onDone.
+-- Fades out from wherever it is, then stops.
 function Layer:FadeOut(duration, onDone)
     if self.fadeOutStart or not self.playing then return end
     self.fadeOutStart = GetTime()
@@ -160,10 +156,7 @@ function Layer:FadeOut(duration, onDone)
     self.fadeOutDone = onDone
 end
 
----------------------------------------------------------------------------
--- Display frame
----------------------------------------------------------------------------
-
+-- Applies one text block's font, colour and shadow.
 local function ApplyFontString(fs, cfg)
     local flags = cfg.outline or ""
     if not fs:SetFont(cfg.font or "Fonts\\FRIZQT__.TTF", Clamp(cfg.size, 6, 64), flags) then
@@ -196,8 +189,6 @@ function BFH:InitializeDisplay()
     textFrame:SetAllPoints(display)
     textFrame:SetFrameLevel(display:GetFrameLevel() + 10)
 
-    -- A FontString with no font errors on SetText, so every one of these gets
-    -- a fallback before it is used; ApplyDisplaySettings styles them after.
     local function NewText()
         local fs = textFrame:CreateFontString(nil, "OVERLAY")
         fs:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
@@ -236,8 +227,7 @@ function BFH:InitializeDisplay()
     self:PreloadTextures()
 end
 
--- Touch every page once at login so the first cast in combat doesn't hitch
--- while the client reads the textures from disk.
+-- Loads every page once at login so nothing stutters mid-fight.
 function BFH:PreloadTextures()
     if not ns.AnimData then return end
     local holder = CreateFrame("Frame", nil, UIParent)
@@ -264,6 +254,7 @@ function BFH:ApplyPosition()
         self.db.x or 0, self.db.y or 0)
 end
 
+-- Rebuilds sizes, fonts and offsets from the settings.
 function BFH:ApplyDisplaySettings()
     if not display then return end
     local d = self.db
@@ -290,6 +281,7 @@ function BFH:ApplyDisplaySettings()
     self:UpdateTexts()
 end
 
+-- Locks or unlocks dragging, previewing while unlocked.
 function BFH:SetLocked(locked)
     self.db.locked = locked and true or false
     if not locked and not self.stage then
@@ -299,20 +291,19 @@ function BFH:SetLocked(locked)
     if self.RefreshConfig then self:RefreshConfig() end
 end
 
----------------------------------------------------------------------------
--- Stage control
----------------------------------------------------------------------------
-
+-- The configured timer for a stage, clamped to its limits.
 function BFH:GetStageDuration(stage)
     local limits = self.LIMITS[stage]
     local v = stage == "BLIGHT" and self.db.blightDelay or self.db.soulDelay
     return Clamp(v, limits[1], limits[2])
 end
 
+-- Previews only play sound on their first loop.
 local function AudioAllowed()
     return not BFH.preview or BFH.previewCycle == 1
 end
 
+-- Starts a spell's loading animation and countdown.
 function BFH:ShowStage(stage)
     self.stage = stage
     self.phase = "LOADING"
@@ -327,6 +318,7 @@ function BFH:ShowStage(stage)
     self:UpdateTexts()
 end
 
+-- Loading finished: play the ready animation and its sound.
 function BFH:EnterReady()
     local stage = self.stage
     if not PREFIX[stage] then return end
@@ -336,6 +328,7 @@ function BFH:EnterReady()
     self:UpdateTexts()
 end
 
+-- Loops until the player casts the spell.
 function BFH:EnterIdle()
     local stage = self.stage
     if not PREFIX[stage] then return end
@@ -345,10 +338,12 @@ function BFH:EnterIdle()
     self:UpdateTexts()
 end
 
+-- Animation key for a Putrefy card variant at the chosen size.
 function BFH:GetPutrefyKey(variant)
     return "putrefy_" .. variant .. (self.db.putrefySmall and "_sml" or "_big")
 end
 
+-- Shows a random Putrefy card after an optional delay.
 function BFH:ShowPutrefy(delay)
     local variants = ns.PutrefyVariants or {"uhly"}
     self.putrefyVariant = variants[math.random(#variants)]
@@ -364,10 +359,12 @@ function BFH:ShowPutrefy(delay)
     self:UpdateTexts()
 end
 
+-- True while the card is still waiting to fade in.
 function BFH:IsPutrefyPending()
     return self.stage == "PUTREFY" and main and main:IsPending()
 end
 
+-- Plays a spell's use animation and whatever sound follows it.
 function BFH:PlayOnUse(stage)
     local key
     if stage == "PUTREFY" then
@@ -385,8 +382,7 @@ function BFH:PlayOnUse(stage)
     })
 end
 
--- Pressing Putrefy before its card appears is allowed, so the OnUse waits
--- for the pending delay instead of cutting Blightfall's OnUse short.
+-- Putrefy cast, waiting out the delay if the card has not appeared yet.
 function BFH:CastPutrefy()
     local delay = main:PendingTime()
     self:ClearMain()
@@ -416,6 +412,7 @@ function BFH:HideCelebration()
     perfect:Hide()
 end
 
+-- Shows the finale on demand from the settings window.
 function BFH:PreviewCelebration()
     self:StopCelebration()
     self:StartCelebration()
@@ -436,10 +433,6 @@ function BFH:ClearAll()
     self.putrefyToken = (self.putrefyToken or 0) + 1
     self:StopCelebration()
 end
-
----------------------------------------------------------------------------
--- Preview (loops until stopped)
----------------------------------------------------------------------------
 
 function BFH:StartPreview(stage)
     if not display then return end
@@ -462,6 +455,7 @@ function BFH:StopPreview()
     self:ClearAll()
 end
 
+-- Restarts the preview loop with its use animation.
 local function AdvancePreview()
     local stage = BFH.preview
     BFH.previewNext = nil
@@ -475,10 +469,7 @@ local function AdvancePreview()
     end
 end
 
----------------------------------------------------------------------------
--- Per-frame update
----------------------------------------------------------------------------
-
+-- Countdown text at the configured precision.
 function BFH:FormatRemaining(v)
     v = math.max(v, 0)
     local p = tonumber(self.db.counter.precision) or 1
@@ -487,6 +478,7 @@ function BFH:FormatRemaining(v)
     return string.format("%.2f", v)
 end
 
+-- Shows or hides the countdown and spell name for the current phase.
 function BFH:UpdateTexts()
     if not counter then return end
     local d = self.db
@@ -502,15 +494,16 @@ function BFH:UpdateTexts()
 
 end
 
+-- Per-frame driver: animations, texts, flash, preview loop and timeouts.
 function BFH:OnDisplayUpdate(elapsed)
     main:Update(elapsed)
     outro:Update(elapsed)
     celebration:Update(elapsed)
     if perfect:IsShown() then
-        -- The text blinks; the animation behind it does not.
+
         perfect:SetAlpha(0.55 + 0.45 * math.sin(GetTime() * math.pi * 5))
     end
-    -- Countdown and spell name fade in together with the animation.
+
     textFrame:SetAlpha(main.frame:IsShown() and main.frame:GetAlpha() or 1)
 
     if self.preview and self.previewNext and GetTime() >= self.previewNext then
@@ -522,7 +515,7 @@ function BFH:OnDisplayUpdate(elapsed)
         main:FadeOut(SOUL_FADE_OUT, function() BFH:ClearMain() end)
     elseif not self.preview and self.stage == "PUTREFY" and GetTime() >= (self.putrefyExpire or 0) then
         self:Debug("Putrefy timed out")
-        -- Letting the card run out is not a completed combo.
+
         self:MissCombo("Putrefy never cast")
         self:PlayOnUse("PUTREFY")
         self:ClearMain()
@@ -536,8 +529,6 @@ function BFH:OnDisplayUpdate(elapsed)
     local loading = self.phase == "LOADING"
     local remaining = loading and (self.stageEnd - GetTime()) or 0
 
-    -- Optional flash (placeholder effect until the designed one arrives):
-    -- near the end of loading, and/or the whole time Ready/Idle is up.
     local flash
     if loading then
         flash = self.db.flashEnabled and remaining <= (tonumber(self.db.flashAt) or 4)

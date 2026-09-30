@@ -3,11 +3,9 @@ if not BFH then return end
 
 local BUTTON_SIZE = 32
 
--- Buttons ride a circle slightly wider than the minimap itself, the same way
--- LibDBIcon and other addons place theirs; sitting exactly on the rim would
--- tuck this one visibly further in than its neighbours.
 local RIM_OFFSET = 10
 
+-- Buttons ride a circle slightly wider than the minimap, as other addons do.
 local function GetMinimapRadius()
     if not Minimap then return 70 + RIM_OFFSET end
     local w = Minimap:GetWidth() or 140
@@ -15,6 +13,7 @@ local function GetMinimapRadius()
     return math.max(w, h) * 0.5 + RIM_OFFSET
 end
 
+-- Places the button on that circle at the saved angle.
 local function PositionButton(button, angle)
     if not Minimap then return end
     local radius = GetMinimapRadius()
@@ -29,6 +28,7 @@ local function PositionButton(button, angle)
     )
 end
 
+-- Crops a texture to a circle.
 local function ApplyCircleMask(texture, parent, size)
     local mask = parent:CreateMaskTexture()
     mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
@@ -53,9 +53,6 @@ function BFH:InitializeMinimapButton()
     b:RegisterForClicks("LeftButtonUp")
     b:RegisterForDrag("LeftButton")
 
-    -- OUTER RING
-    -- Built from a masked solid texture rather than MiniMap-TrackingBorder.
-    -- This is intentionally simple and reliable: no atlas crop/offset issues.
     local outerRing = b:CreateTexture(nil, "BACKGROUND")
     outerRing:SetTexture("Interface\\Buttons\\WHITE8X8")
     outerRing:SetSize(30, 30)
@@ -63,7 +60,6 @@ function BFH:InitializeMinimapButton()
     outerRing:SetVertexColor(0.92, 0.72, 0.16, 1)
     ApplyCircleMask(outerRing, b, 30)
 
-    -- INNER DARK RING creates the metallic-looking outline thickness.
     local innerRing = b:CreateTexture(nil, "BORDER")
     innerRing:SetTexture("Interface\\Buttons\\WHITE8X8")
     innerRing:SetSize(26, 26)
@@ -71,16 +67,14 @@ function BFH:InitializeMinimapButton()
     innerRing:SetVertexColor(0.08, 0.07, 0.055, 1)
     ApplyCircleMask(innerRing, b, 26)
 
-    -- BLIGHTFALL ICON
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetSize(22, 22)
     icon:SetPoint("CENTER")
-    -- Zoom on the orb in the first frame of Blightfall's Idle animation;
-    -- fall back to the spell icon if the animation textures are missing.
+
     local idle = self.ns.AnimData and self.ns.AnimData.blight_idle
     if idle then
         local page = idle.pages[1]
-        local px = page[3] / idle.cell -- one source pixel in texcoords
+        local px = page[3] / idle.cell
         icon:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
         icon:SetTexCoord(30 * px, 94 * px, 30 * px, 94 * px)
     else
@@ -89,7 +83,6 @@ function BFH:InitializeMinimapButton()
     end
     ApplyCircleMask(icon, b, 22)
 
-    -- HOVER RING
     local hover = b:CreateTexture(nil, "OVERLAY")
     hover:SetTexture("Interface\\Buttons\\WHITE8X8")
     hover:SetSize(30, 30)

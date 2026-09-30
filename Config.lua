@@ -7,20 +7,19 @@ local COL2 = 370
 
 local controls = {}
 
+-- Registers a widget so RefreshConfig can update it.
 local function Track(control)
     controls[#controls + 1] = control
     return control
 end
 
+-- Applies a setting change and refreshes the window.
 local function Changed()
     BFH:ApplyDisplaySettings()
     BFH:RefreshConfig()
 end
 
----------------------------------------------------------------------------
--- Layout: each page is a scroll child with a running y cursor.
----------------------------------------------------------------------------
-
+-- Pages stack widgets down a running y cursor.
 local function Advance(page, h)
     page.y = page.y - h
 end
@@ -51,10 +50,6 @@ local function Note(page, text, x, width)
     At(page, fs, x)
     return fs
 end
-
----------------------------------------------------------------------------
--- Widgets (Blizzard templates)
----------------------------------------------------------------------------
 
 local function Checkbox(parent, text, getter, setter)
     local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
@@ -129,7 +124,6 @@ local function Slider(parent, text, minV, maxV, step, getter, setter, format)
     return Track(wrap)
 end
 
--- items: list of {text=, value=} or a function returning one
 local function Dropdown(parent, text, width, items, getter, setter)
     local wrap = CreateFrame("Frame", nil, parent)
     wrap:SetSize(width, 46)
@@ -204,7 +198,7 @@ local function ColorSwatch(parent, text, getter, setter)
     return Track(b)
 end
 
--- Text box with Accept/Cancel while editing and a revert arrow otherwise.
+-- Editable spell name with accept, cancel and a reset arrow.
 local function NameEditor(parent, text, stage)
     local wrap = CreateFrame("Frame", nil, parent)
     wrap:SetSize(420, 26)
@@ -244,8 +238,6 @@ local function NameEditor(parent, text, stage)
         reset:SetShown(not editing)
     end
 
-    -- Accept/Cancel stay up until one of them is used, so an unsaved edit
-    -- is never lost just because focus moved elsewhere.
     local function Commit()
         local v = strtrim(box:GetText() or "")
         if v == "" then v = BFH.DEFAULT_NAMES[stage] end
@@ -280,10 +272,6 @@ local function NameEditor(parent, text, stage)
     return Track(wrap)
 end
 
----------------------------------------------------------------------------
--- Shared option lists
----------------------------------------------------------------------------
-
 local function FontItems()
     local out = {}
     for _, f in ipairs(BFH:GetFonts()) do
@@ -308,6 +296,7 @@ local CHANNELS = {
     {text = "Ambience", value = "Ambience"},
 }
 
+-- Selectable sounds; hidden ones are played by the addon only.
 local function SoundItems()
     local out = {}
     for _, s in ipairs(BFH.SOUNDS) do
@@ -323,6 +312,7 @@ local function PresetItems()
     return out
 end
 
+-- Display name for a font path.
 local function FontName(path)
     for _, f in ipairs(BFH:GetFonts()) do
         if f.path == path then return f.name end
@@ -330,8 +320,7 @@ local function FontName(path)
     return path
 end
 
--- Font / size / outline / colour / shadow / offset block shared by the
--- countdown and spell-name sections.
+-- Font, size, outline, colour, shadow and offset controls for one text block.
 local function TextStyleBlock(page, cfg, offsetRange)
     Dropdown(page, "Font", 220, FontItems,
         function() return cfg().font end,
@@ -374,10 +363,6 @@ local function TextStyleBlock(page, cfg, offsetRange)
     Advance(page, 56)
 end
 
----------------------------------------------------------------------------
--- Pages
----------------------------------------------------------------------------
-
 local function BuildGeneral(page)
     local db = function() return BFH.db end
 
@@ -408,7 +393,7 @@ local function BuildGeneral(page)
         function() return db().minimapMouseoverOnly end,
         function(v) db().minimapMouseoverOnly = v; BFH:UpdateMinimapButton() end)
     hover:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
-    -- Mouseover only means something while the button is shown.
+
     local baseRefresh = hover.Refresh
     hover.Refresh = function(self)
         baseRefresh(self)
@@ -455,7 +440,7 @@ local function BuildGeneral(page)
     Advance(page, 36)
 
     local credit = page:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    credit:SetText("Blightfall v" .. BFH.VERSION .. "  -  Created by JSAL")
+    credit:SetText("Blightfall v" .. BFH.VERSION .. "  -  Created by esalgado23")
     At(page, credit)
     Advance(page, 24)
 end
@@ -532,6 +517,7 @@ local function BuildStyle(page)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
     Advance(page, 56)
 
+    -- Sound picker for one moment of the sequence.
     local function EventDropdown(parent, event, x)
         local dd = Dropdown(parent, BFH.SOUND_EVENT_NAMES[event], 220, SoundItems,
             function() return db().sounds[event] end,
@@ -609,15 +595,11 @@ local function BuildStyle(page)
     test:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 16)
     Advance(page, 60)
 
-    -- Everything below belongs to combo presets only, so it lives in its own
-    -- frame that is hidden outright instead of greyed out.
     local combo = CreateFrame("Frame", nil, page)
     combo:SetPoint("TOPLEFT", page, "TOPLEFT", 0, page.y)
     combo:SetWidth(CONTENT_WIDTH)
     combo.y = 0
 
-    -- The three "after" sounds are part of the combo preset itself, so they
-    -- are never offered for editing.
     Header(combo, "Perfect Combo")
     Note(combo, "Cast every spell at or after its Ready and the sequence ends with a celebration.")
     Advance(combo, 32)
@@ -637,7 +619,7 @@ local function BuildStyle(page)
         function(v) db().celebrationOffInstances = v end)
         :SetPoint("TOPLEFT", combo, "TOPLEFT", 12, combo.y)
     Advance(combo, 36)
-    -- The finale's sound is part of the preset, not something to swap out.
+
     local celPreview = Button(combo, "Preview celebration", 160, function()
         BFH:PreviewCelebration()
     end)
@@ -649,10 +631,7 @@ local function BuildStyle(page)
     page.comboHeight = -combo.y
 end
 
----------------------------------------------------------------------------
--- Window
----------------------------------------------------------------------------
-
+-- A scrolling page inside the window.
 local function CreatePage(parent)
     local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 6, -6)
@@ -685,8 +664,6 @@ function BFH:InitializeConfig()
     f:Hide()
     tinsert(UISpecialFrames, "BlightfallConfig")
 
-    -- The template's X goes through Blizzard's panel manager (HideUIPanel),
-    -- which doesn't reliably close addon windows. Close it directly.
     f.onCloseCallback = function() f:Hide() end
     if f.CloseButton then
         f.CloseButton:SetScript("OnClick", function() f:Hide() end)
@@ -722,7 +699,7 @@ function BFH:InitializeConfig()
 
     f:SetScript("OnShow", function()
         BFH:RefreshConfig()
-        -- Show an animation right away so it can be positioned and styled.
+
         if not BFH.stage then BFH:StartPreview("SOUL") end
     end)
     f:SetScript("OnHide", function()
@@ -740,6 +717,7 @@ function BFH:ShowConfigPage(id)
     PanelTemplates_SetTab(f, id)
 end
 
+-- Updates every widget, the talent line and the combo-only section.
 function BFH:RefreshConfig()
     if not self.config or not self.config:IsShown() then return end
     for _, c in ipairs(controls) do

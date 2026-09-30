@@ -6,12 +6,11 @@ BFH.ns = ns
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
 BFH.SCHEMA = 106
--- Saved settings older than this are from before the animation redesign.
+
 local RESET_BELOW_SCHEMA = 102
 
 BFH.MEDIA = "Interface\\AddOns\\Blightfall\\Media\\"
 
--- The finale animation starts this long after its sound does, so the two sync.
 local CELEBRATION_DELAY = 0.267
 
 BFH.SPELL = {
@@ -42,7 +41,6 @@ local FONT_DTM = BFH.MEDIA .. "Fonts\\DTM-Mono.otf"
 BFH.defaults = {
     schemaVersion = BFH.SCHEMA,
 
-    -- General
     locked = true,
     point = "CENTER",
     relativePoint = "CENTER",
@@ -55,14 +53,12 @@ BFH.defaults = {
     soulDelay = 9.5,
     blightDelay = 6.0,
 
-    -- Style: animation
     scale = 100,
     putrefySmall = false,
     flashEnabled = false,
     flashAt = 4,
     flashReady = false,
 
-    -- Style: countdown text (shown while loading)
     counter = {
         show = true,
         font = FONT_DTM,
@@ -77,16 +73,15 @@ BFH.defaults = {
         precision = 1,
     },
 
-    -- Style: spell name under the animation
     label = {
         show = true,
         font = FONT_OLDBITZ,
         fontName = "Oldbitz",
         size = 14,
         outline = "MONOCHROME",
-        color = {0xFC / 255, 0xBC / 255, 0x31 / 255, 1}, -- #FCBC31
+        color = {0xFC / 255, 0xBC / 255, 0x31 / 255, 1},
         shadow = true,
-        shadowColor = {0xCC / 255, 0x44 / 255, 0x19 / 255, 1}, -- #CC4419
+        shadowColor = {0xCC / 255, 0x44 / 255, 0x19 / 255, 1},
         x = 0,
         y = -72,
     },
@@ -96,7 +91,6 @@ BFH.defaults = {
         PUTREFY = "Putrefy",
     },
 
-    -- Style: sound
     soundPreset = "majora",
     comboMode = false,
     sounds = {
@@ -112,7 +106,7 @@ BFH.defaults = {
     celebrationOffInstances = false,
     soundEnabled = true,
     countdownStart = 4,
-    audioMode = "FILES", -- FILES / TTS
+    audioMode = "FILES",
     soundChannel = "Master",
     ttsVolume = 80,
     ttsRate = 0,
@@ -128,10 +122,6 @@ BFH.SOUND_EVENT_NAMES = {
     PUTREFY_END = "After Putrefy",
 }
 
--- Sound library. Everything here ships with the addon; `dur` (seconds) is only
--- stored for sounds the addon has to chain something onto, since WoW never
--- reports when a sound has finished. `hidden` sounds are played by the addon
--- but are not offered in the pickers.
 BFH.SOUNDS = {
     {key = "none", name = "None"},
     {key = "combo_1", name = "Combo 1", file = "Sounds\\combo_1.ogg", dur = 0.50},
@@ -166,13 +156,11 @@ BFH.SOUNDS = {
     {key = "death_card", name = "Death Card", file = "Sounds\\isaacc_death_card.ogg", hidden = true},
 }
 
--- One of these plays at random as a Putrefy card burns, outside combo mode.
 BFH.CARD_BURN = {"card_burn", "card_burn_2", "card_burn_3", "death_card"}
 
 BFH.SOUND_BY_KEY = {}
 for _, entry in ipairs(BFH.SOUNDS) do BFH.SOUND_BY_KEY[entry.key] = entry end
 
--- Only a `combo` preset uses the three *_END moments and the finale.
 BFH.SOUND_PRESETS = {
     {key = "majora", name = "Majora", sounds = {
         SOUL_READY = "zelda_low_health", BLIGHT_READY = "zelda_tower"}},
@@ -181,7 +169,6 @@ BFH.SOUND_PRESETS = {
         BLIGHT_READY = "combo_3", BLIGHT_END = "combo_4", PUTREFY_END = "combo_5"}},
 }
 
--- WoW gives addons no per-sound volume, only the level of a whole channel.
 BFH.CHANNEL_CVAR = {
     Master = "Sound_MasterVolume",
     SFX = "Sound_SFXVolume",
@@ -198,6 +185,7 @@ local function DeepCopy(v)
 end
 BFH.DeepCopy = DeepCopy
 
+-- Fills in any setting the saved table is missing.
 local function CopyDefaults(src, dst)
     for k, v in pairs(src) do
         if type(v) == "table" then
@@ -209,10 +197,7 @@ local function CopyDefaults(src, dst)
     end
 end
 
----------------------------------------------------------------------------
--- Fonts
----------------------------------------------------------------------------
-
+-- Bundled fonts first, then WoW's own and anything LibSharedMedia offers.
 function BFH:GetFonts()
     local list = {
         {name = "Oldbitz", path = FONT_OLDBITZ},
@@ -240,16 +225,13 @@ function BFH:GetFonts()
     return list
 end
 
+-- Shares the bundled fonts with other addons.
 local function RegisterSharedMedia(_)
     local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
     if not LSM then return end
     LSM:Register("font", "Oldbitz", FONT_OLDBITZ)
     LSM:Register("font", "DTM Mono", FONT_DTM)
 end
-
----------------------------------------------------------------------------
--- Sound
----------------------------------------------------------------------------
 
 function BFH:GetSound(key)
     return self.SOUND_BY_KEY[key]
@@ -261,6 +243,7 @@ function BFH:GetPreset(key)
     end
 end
 
+-- WoW only exposes a whole channel's level, never a single sound's.
 function BFH:GetChannelVolume()
     local cvar = self.CHANNEL_CVAR[self.db.soundChannel] or "Sound_MasterVolume"
     local get = (C_CVar and C_CVar.GetCVar) or GetCVar
@@ -284,20 +267,20 @@ function BFH:PlaySoundEntry(key)
     end
 end
 
--- Plays whatever is attached to one of SOUND_EVENTS.
+-- Plays the sound attached to one moment of the sequence.
 function BFH:PlayEvent(event)
     local key = self.db.sounds[event]
     if key and key ~= "none" then self:PlaySoundEntry(key) end
 end
 
--- Flavour sound for the burning Putrefy card. Combo presets bring their own
--- audio, so it stays out of their way.
+-- Random burning-card sound; combo presets bring their own audio.
 function BFH:PlayCardBurn()
     if self.comboMode or not self.db.cardBurn then return end
     local list = self.CARD_BURN
     self:PlaySoundEntry(list[math.random(#list)])
 end
 
+-- Copies a preset's sounds into the settings.
 function BFH:ApplySoundPreset(presetKey)
     local p = self:GetPreset(presetKey)
     if not p then return end
@@ -309,13 +292,12 @@ function BFH:ApplySoundPreset(presetKey)
     self:RefreshSoundState()
 end
 
--- Mirrored onto the addon table so the sequence tests one boolean instead of
--- walking the preset list on every cast.
+-- Mirrors combo mode onto the addon table so checks stay cheap.
 function BFH:RefreshSoundState()
     self.comboMode = self.db.comboMode and true or false
 end
 
--- The UI shows a preset only while every sound still matches it.
+-- Which preset the current sounds still match, or "custom".
 function BFH:GetMatchingPreset()
     local combo = self.db.comboMode and true or false
     for _, p in ipairs(self.SOUND_PRESETS) do
@@ -333,7 +315,7 @@ function BFH:GetMatchingPreset()
     return "custom"
 end
 
--- Only Mythic Keystone (8) and Mythic raid (16) count as hard instances.
+-- True only in Mythic Keystone dungeons and Mythic raid.
 function BFH:InHardInstance()
     local _, _, difficultyID = GetInstanceInfo()
     return difficultyID == 8 or difficultyID == 16
@@ -345,8 +327,7 @@ function BFH:CanCelebrate()
     return true
 end
 
--- Fired when an OnUse animation finishes. Combo presets chain a sound here,
--- and a clean run ends with the Perfect Combo finale.
+-- Chains the combo sound after a use animation, and the finale after Putrefy.
 function BFH:OnOnUseFinished(stage)
     if not self.comboMode or self.preview then return end
     self:PlayEvent(stage .. "_END")
@@ -367,6 +348,7 @@ function BFH:OnOnUseFinished(stage)
     end)
 end
 
+-- Plays the finale sound, then its animation once the two line up.
 function BFH:StartCelebration()
     self:PlaySoundEntry(self.db.celebrationSound)
     self.celebrationToken = (self.celebrationToken or 0) + 1
@@ -376,12 +358,13 @@ function BFH:StartCelebration()
     end)
 end
 
--- Cancels a pending or running finale, e.g. when a new sequence starts.
+-- Cancels a pending or running finale.
 function BFH:StopCelebration()
     self.celebrationToken = (self.celebrationToken or 0) + 1
     self:HideCelebration()
 end
 
+-- Path of a bundled spoken-countdown file.
 function BFH:GetSoundPath(number)
     return string.format("Interface\\AddOns\\Blightfall\\Sounds\\%d.ogg", number)
 end
@@ -394,6 +377,7 @@ function BFH:GetTTSVoices()
     return {}
 end
 
+-- The chosen voice, falling back to the first one available.
 function BFH:GetTTSVoiceID()
     local voices = self:GetTTSVoices()
     if #voices == 0 then return nil end
@@ -443,10 +427,7 @@ function BFH:GetSpellTexture(spellID)
     return texture or 134400
 end
 
----------------------------------------------------------------------------
--- Talents
----------------------------------------------------------------------------
-
+-- Whether the player currently knows the spell.
 function BFH:IsSpellAvailable(spellID)
     if not spellID then return false end
 
@@ -481,6 +462,7 @@ function BFH:HasPutrefy()
     return self:IsSpellAvailable(self.SPELL.PUTREFY)
 end
 
+-- Re-reads which spells are known and drops a timer for one that is gone.
 function BFH:RefreshTalentState()
     self.hasSoulReaper = self:HasSoulReaper()
     self.hasBlightfall = self:HasBlightfall()
@@ -497,32 +479,21 @@ function BFH:RefreshTalentState()
     if self.RefreshConfig then self:RefreshConfig() end
 end
 
----------------------------------------------------------------------------
--- Helpers
----------------------------------------------------------------------------
-
--- Midnight hides many combat values from addons ("secret values"), including
--- the pet's auras, so the sequence is driven only by the player's own casts.
--- Anything secret must be ignored, never compared or used as a table key.
+-- Midnight hides some combat values; they must never be compared or used as keys.
 local function IsSecret(v)
     return issecretvalue ~= nil and issecretvalue(v) and true or false
 end
 BFH.IsSecret = IsSecret
 
--- Debug output toggled with /bf debug.
 function BFH:Debug(...)
     if self.debug then print("|cff9f1cffBlightfall debug:|r", ...) end
 end
-
----------------------------------------------------------------------------
--- Sequence: DT -> Soul Reaper -> Blightfall -> Putrefy
----------------------------------------------------------------------------
 
 function BFH:OnDarkTransformation()
     self:StopPreview()
     self:ClearAll()
     self.dtCastTime = GetTime()
-    -- A combo only counts while every spell is cast at or after its Ready.
+
     self.comboOK = true
 
     if self.hasSoulReaper then
@@ -543,8 +514,9 @@ function BFH:OnSoulReaper()
     end
 end
 
+-- Blightfall cast: shows a Putrefy card, or ends the run if Soul Reaper is still up.
 function BFH:OnBlightfall()
-    -- Blightfall used while Soul Reaper is still up: drop it instantly.
+
     if self.stage == "SOUL" then
         self:MissCombo("Blightfall cast during Soul Reaper")
         self:ClearMain()
@@ -565,12 +537,14 @@ function BFH:OnPutrefy()
     self:CastPutrefy()
 end
 
+-- Marks the run as imperfect, so no finale plays.
 function BFH:MissCombo(reason)
     if not self.comboOK then return end
     self.comboOK = false
     self:Debug("combo broken:", reason)
 end
 
+-- Routes one of the player's casts into the sequence.
 function BFH:HandleSpell(spellID)
     if IsSecret(spellID) then
         self:Debug("cast with hidden spell ID ignored")
@@ -604,10 +578,6 @@ function BFH:ResetSequence()
     if not self.preview then self:ClearAll() end
 end
 
----------------------------------------------------------------------------
--- Events
----------------------------------------------------------------------------
-
 BFH:RegisterEvent("ADDON_LOADED")
 BFH:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 BFH:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -620,32 +590,27 @@ BFH:SetScript("OnEvent", function(self, event, ...)
         local name = ...
         if name ~= ADDON_NAME then return end
 
-        -- Settings from before the animation redesign don't carry over.
         local saved = type(BlightfallDB) == "table" and (tonumber(BlightfallDB.schemaVersion) or 0) or 0
         if saved < RESET_BELOW_SCHEMA then
             BlightfallDB = {}
         else
             if saved < 103 then
-                -- 6.2s was the old default for both; move untouched values to
-                -- the new recommendations.
+
                 if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
                 if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
             end
             if saved < 106 then
-                -- The card burn moved from Soul Reaper to Putrefy.
+
                 BlightfallDB.cardBurn = BlightfallDB.reaperBurn
                 BlightfallDB.reaperBurn = nil
             end
             if saved < 105 then
-                -- The sound library lost its Blizzard entries and most
-                -- presets, so old picks may no longer exist.
+
                 BlightfallDB.sounds = nil
                 BlightfallDB.comboMode = nil
             end
             if saved < 104 then
-                -- readySound became the per-event `sounds` table. Picks that
-                -- were still the old Blizzard defaults fall through to the
-                -- new Majora default instead.
+
                 local old = BlightfallDB.readySound
                 if type(old) == "table"
                     and not (old.SOUL == "ready_check" and old.BLIGHT == "raid_warning") then
@@ -689,8 +654,6 @@ BFH:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
-        -- Start-up runs after the slash command exists, and each step is
-        -- guarded so a failure still leaves /bf usable to report it.
         local function Step(name, fn)
             if type(fn) ~= "function" then return end
             local ok, err = pcall(fn, self)
