@@ -7,7 +7,7 @@ local CELL = 128
 local LOADING_FADE = 1.0
 local PUTREFY_FADE = 0.3
 local PREVIEW_IDLE_TIME = 2.0
-local PUTREFY_TIME = 3.0 -- Putrefy leaves on its own if not cast
+local PUTREFY_TIME = 5.0 -- time at full opacity before Putrefy leaves on its own
 local SOUL_TIMEOUT = 15.0 -- Soul Reaper leaves this long after Dark Transformation
 local SOUL_FADE_OUT = 0.5
 
@@ -325,7 +325,7 @@ function BFH:ShowPutrefy(delay)
     self.putrefyVariant = variants[math.random(#variants)]
     self.stage = "PUTREFY"
     self.phase = "IDLE"
-    self.putrefyExpire = GetTime() + (delay or 0) + PUTREFY_TIME
+    self.putrefyExpire = GetTime() + (delay or 0) + PUTREFY_FADE + PUTREFY_TIME
     main:Play(self:GetPutrefyKey(self.putrefyVariant) .. "_idle", {
         fps = FPS,
         loop = true,
@@ -375,7 +375,7 @@ function BFH:StartPreview(stage)
     self.previewNext = nil
     if stage == "PUTREFY" then
         self:ShowPutrefy(0)
-        self.previewNext = GetTime() + PUTREFY_TIME
+        self.previewNext = GetTime() + PUTREFY_FADE + PUTREFY_TIME
     else
         self:ShowStage(stage)
     end
@@ -395,7 +395,7 @@ local function AdvancePreview()
     BFH:PlayOnUse(stage)
     if stage == "PUTREFY" then
         BFH:ShowPutrefy(0.5)
-        BFH.previewNext = GetTime() + 0.5 + PUTREFY_TIME
+        BFH.previewNext = GetTime() + 0.5 + PUTREFY_FADE + PUTREFY_TIME
     else
         BFH:ShowStage(stage)
     end

@@ -7,7 +7,7 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 ## Features
 
 - Loading animation stretched to your chosen timer, then Ready/Idle until you cast, then an OnUse effect.
-- Putrefy card (6 random designs, big or small) after Blightfall; it leaves after 3 seconds if not cast.
+- Putrefy card (6 random designs, big or small) after Blightfall; it leaves after 5 seconds if not cast.
 - Talent aware. Driven only by your own casts, so it keeps working in combat.
 - Optional countdown text and spell name with custom fonts, colours, shadow and position.
 - Ready sounds with presets, plus spoken countdown (voice files or WoW text-to-speech).

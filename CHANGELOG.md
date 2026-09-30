@@ -4,7 +4,7 @@
 
 ### Animation redesign
 - The progress bar is replaced by pixel-art animations. Soul Reaper and Blightfall play **Loading** (stretched to the timer, 1s fade-in) -> **Ready** (once) -> **Idle** (loops until cast) -> **OnUse** (0.5s, when cast).
-- **Putrefy** appears 0.5s after Blightfall with a 0.3s fade-in, using one of 6 random card designs, and plays that card's OnUse when cast or after 3 seconds. Optional small cards.
+- **Putrefy** appears 0.5s after Blightfall with a 0.3s fade-in, using one of 6 random card designs, and plays that card's OnUse when cast or after 5 seconds at full opacity. Optional small cards.
 - The sequence is driven only by your casts, starting at Dark Transformation. The addon no longer reads the ghoul's auras, which Midnight hides in combat. Soul Reaper and Blightfall stay in Idle until cast; a new Dark Transformation restarts the sequence.
 - New defaults: Soul Reaper 9s (1-15s), Blightfall 6.2s (1-8s). Putrefy has no timer.
 - Optional flash when N seconds of loading remain (placeholder effect).
