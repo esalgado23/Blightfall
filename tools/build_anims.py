@@ -1,12 +1,17 @@
 """Convert the designer's sprite sheets (art/src) into WoW-ready textures.
 
 Source sheets are grids of square cells, frames left-to-right, top-to-bottom.
-Output: Media/Anim/<key>_<page>.tga pages of up to 8x8 cells plus AnimData.lua
-describing every animation for the addon.
+Output: Media/Anim/<key>_<page>.tga atlas pages plus AnimData.lua describing
+every animation for the addon.
+
+Each page holds a square grid of cells and is padded to a power-of-two square,
+which is what WoW is happiest loading. AnimData stores the cells-per-row and
+the texture coordinate step so the addon can slice any cell size.
 
 Run from the repo root:  python tools/build_anims.py
 Requires Pillow.
 """
+import math
 import os
 from PIL import Image
 
@@ -15,16 +20,15 @@ SRC = os.path.join(ROOT, "art", "src")
 OUT = os.path.join(ROOT, "Media", "Anim")
 LUA = os.path.join(ROOT, "AnimData.lua")
 
-PAGE_COLS = 8
+MAX_TEXTURE = 2048
 ADDON_PATH = "Interface\\AddOns\\Blightfall\\Media\\Anim\\"
 
-# key -> dict(src, frames, cols=source columns, cell=source cell px,
-#             out=output cell px). Output cells are what the addon draws.
 ANIMS = {}
 
 
-def add(key, src, frames, cols=10, cell=128, out=128):
-    ANIMS[key] = dict(src=src, frames=frames, cols=cols, cell=cell, out=out)
+def add(key, src, frames, cols=10, cell=128, out=None):
+    """out defaults to the source cell size, i.e. no rescaling."""
+    ANIMS[key] = dict(src=src, frames=frames, cols=cols, cell=cell, out=out or cell)
 
 
 for stage, folder, name in (("reaper", "reaper", "Reaper"), ("blight", "blightfall", "Blightfall")):
@@ -42,43 +46,44 @@ for variant in PUTREFY_VARIANTS:
         add(key + "_idle", f"putrefy/{stem}-idle.png", 60)
         add(key + "_onuse", f"putrefy/{stem}-Onuse.png", 15)
 
-# Perfect-combo celebration: 24 columns of 188px cells, downscaled to 128 so
-# the 528 frames stay within a sane texture budget.
-add("celebration", "celebration/helios_rap.png", 528, cols=24, cell=188, out=128)
+# Perfect-combo celebration, kept at its native 188px cells.
+add("celebration", "celebration/helios_rap.png", 528, cols=24, cell=188)
 
 
-def page_size(frames):
-    """Smallest power-of-two square page (in cells per side) that fits the frames."""
-    side = 1
-    while side * side < frames and side < PAGE_COLS:
-        side *= 2
-    return side
+def next_pot(v):
+    p = 1
+    while p < v:
+        p *= 2
+    return p
 
 
 def build(key, spec):
     sheet = Image.open(os.path.join(SRC, spec["src"])).convert("RGBA")
     cell, out, cols = spec["cell"], spec["out"], spec["cols"]
 
-    cells = []
+    frames = []
     for i in range(spec["frames"]):
         x, y = (i % cols) * cell, (i // cols) * cell
         frame = sheet.crop((x, y, x + cell, y + cell))
         if out != cell:
             frame = frame.resize((out, out), Image.LANCZOS)
-        cells.append(frame)
+        frames.append(frame)
 
-    per_page = PAGE_COLS * PAGE_COLS
+    max_cols = max(1, MAX_TEXTURE // out)
+    per_page = max_cols * max_cols
+
     pages = []
-    for p in range(0, len(cells), per_page):
-        chunk = cells[p:p + per_page]
-        side = page_size(len(chunk))
-        page = Image.new("RGBA", (side * out, side * out), (0, 0, 0, 0))
-        for j, c in enumerate(chunk):
-            page.paste(c, ((j % side) * out, (j // side) * out))
+    for p in range(0, len(frames), per_page):
+        chunk = frames[p:p + per_page]
+        page_cols = min(max_cols, math.ceil(math.sqrt(len(chunk))))
+        tex = next_pot(page_cols * out)
+        page = Image.new("RGBA", (tex, tex), (0, 0, 0, 0))
+        for j, f in enumerate(chunk):
+            page.paste(f, ((j % page_cols) * out, (j // page_cols) * out))
         name = f"{key}_{len(pages) + 1}"
         page.save(os.path.join(OUT, name + ".tga"))
-        pages.append((name, side))
-    return pages
+        pages.append((name, page_cols, out / tex))
+    return per_page, pages
 
 
 def main():
@@ -93,18 +98,20 @@ def main():
         "local _, ns = ...",
         "ns.AnimData = {",
     ]
+    total = 0
     for key, spec in ANIMS.items():
-        pages = build(key, spec)
-        page_list = ", ".join(f'{{"{lua_path}{n}", {side}}}' for n, side in pages)
+        per_page, pages = build(key, spec)
+        total += sum(os.path.getsize(os.path.join(OUT, n + ".tga")) for n, _, _ in pages)
+        page_list = ", ".join(f'{{"{lua_path}{n}", {c}, {uv:.10g}}}' for n, c, uv in pages)
         lines.append(
             f"    {key} = {{frames = {spec['frames']}, cell = {spec['out']}, "
-            f"perPage = {PAGE_COLS * PAGE_COLS}, pages = {{{page_list}}}}},"
+            f"perPage = {per_page}, pages = {{{page_list}}}}},"
         )
     lines.append("}")
     lines.append("ns.PutrefyVariants = {" + ", ".join(f'"{v.replace("-", "_")}"' for v in PUTREFY_VARIANTS) + "}")
     with open(LUA, "w", encoding="utf-8", newline="\r\n") as fh:
         fh.write("\n".join(lines) + "\n")
-    print(f"Built {len(ANIMS)} animations into {OUT}")
+    print(f"Built {len(ANIMS)} animations, {total / 1024 / 1024:.0f} MB of textures")
 
 
 if __name__ == "__main__":

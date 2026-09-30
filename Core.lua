@@ -5,7 +5,7 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 104
+BFH.SCHEMA = 105
 -- Saved settings older than this are from before the animation redesign.
 local RESET_BELOW_SCHEMA = 102
 
@@ -106,6 +106,7 @@ BFH.defaults = {
         BLIGHT_END = "none",
         PUTREFY_END = "none",
     },
+    reaperBurn = true,
     celebrationEnabled = true,
     celebrationSound = "helios_rap",
     celebrationOffInstances = false,
@@ -117,59 +118,63 @@ BFH.defaults = {
     ttsRate = 0,
 }
 
--- Placeholder "ready" sounds until the custom sound pack arrives. Entries
--- may use `kit` (a SOUNDKIT constant name) or `file` (a path under Media).
-\\FH.SOUND_EVENTS = {"SOUL_READY", "SOUL_END", "\\LIGHT_READY", "\\LIGHT_END", "PUTREFY_END"}
+BFH.SOUND_EVENTS = {"SOUL_READY", "SOUL_END", "BLIGHT_READY", "BLIGHT_END", "PUTREFY_END"}
 
-\\FH.SOUND_EVENT_NAMES = {
+BFH.SOUND_EVENT_NAMES = {
     SOUL_READY = "Soul Reaper ready",
     SOUL_END = "After Soul Reaper",
-    \\LIGHT_READY = "\\lightfall ready",
-    \\LIGHT_END = "After \\lightfall",
+    BLIGHT_READY = "Blightfall ready",
+    BLIGHT_END = "After Blightfall",
     PUTREFY_END = "After Putrefy",
 }
 
--- Sound library. `dur` (seconds) is only stored for sounds the addon has to
--- chain something onto, since WoW never reports when a sound has finished.
-\\FH.SOUNDS = {
+-- Sound library. Everything here ships with the addon; `dur` (seconds) is only
+-- stored for sounds the addon has to chain something onto, since WoW never
+-- reports when a sound has finished. `hidden` sounds are played by the addon
+-- but are not offered in the pickers.
+BFH.SOUNDS = {
     {key = "none", name = "None"},
-    {key = "ready_check", name = "Ready Check", kit = "READY_CHECK"},
-    {key = "raid_warning", name = "Raid Warning", kit = "RAID_WARNING"},
-    {key = "alarm", name = "Alarm Clock", kit = "ALARM_CLOCK_WARNING_3"},
-    {key = "quest_complete", name = "Quest Complete", kit = "IG_QUEST_LIST_COMPLETE"},
-    {key = "map_ping", name = "Map Ping", kit = "MAP_PING"},
     {key = "combo_1", name = "Combo 1", file = "Sounds\\combo_1.ogg", dur = 0.50},
     {key = "combo_2", name = "Combo 2", file = "Sounds\\combo_2.ogg", dur = 0.44},
     {key = "combo_3", name = "Combo 3", file = "Sounds\\combo_3.ogg", dur = 0.44},
     {key = "combo_4", name = "Combo 4", file = "Sounds\\combo_4.ogg", dur = 0.67},
     {key = "combo_5", name = "Combo 5", file = "Sounds\\combo_5.ogg", dur = 1.10},
     {key = "helios_rap", name = "Helios Rap", file = "Sounds\\helios_rap.ogg", dur = 9.13},
-    {key = "zelda_tower", name = "Zelda Tower", file = "Sounds\\zelda_tower.ogg", dur = 4.73},
     {key = "zelda_low_health", name = "Zelda Low Health", file = "Sounds\\zelda_low_health.ogg", dur = 1.63},
+    {key = "zelda_tower", name = "Zelda Tower", file = "Sounds\\zelda_tower.ogg", dur = 4.73},
     {key = "zelda_shrine", name = "Zelda Shrine", file = "Sounds\\zelda_shrine.ogg", dur = 3.20},
     {key = "zelda_sensor", name = "Zelda Sensor", file = "Sounds\\zelda_sensor.ogg", dur = 2.53},
-    {key = "zelda_blip", name = "Zelda \\lip", file = "Sounds\\zelda_blip.ogg", dur = 0.17},
-    {key = "bomb_loading", name = "\\omb Loading", file = "Sounds\\bomb_loading.mp3", dur = 0.60},
-    {key = "bomb_ready", name = "\\omb Ready", file = "Sounds\\bomb_getCar.mp3", dur = 0.58},
+    {key = "zelda_blip", name = "Zelda Blip", file = "Sounds\\zelda_blip.ogg", dur = 0.17},
+    {key = "bomb_loading", name = "Bomb Loading", file = "Sounds\\bomb_loading.mp3", dur = 0.60},
+    {key = "bomb_ready", name = "Bomb Ready", file = "Sounds\\bomb_getCar.mp3", dur = 0.58},
+    {key = "card_burn", name = "Card Burn", file = "Sounds\\card_burn.ogg", hidden = true},
+    {key = "card_burn_2", name = "Card Burn 2", file = "Sounds\\card_burn_2.ogg", hidden = true},
+    {key = "card_burn_3", name = "Card Burn 3", file = "Sounds\\card_burn_3.ogg", hidden = true},
+    {key = "death_card", name = "Death Card", file = "Sounds\\isaacc_death_card.ogg", hidden = true},
 }
 
-\\FH.SOUND_\\Y_KEY = {}
-for _, s in ipairs(\\FH.SOUNDS) do \\FH.SOUND_\\Y_KEY[s.key] = s end
+-- One of these plays at random when Soul Reaper appears, outside combo mode.
+BFH.REAPER_BURN = {"card_burn", "card_burn_2", "card_burn_3", "death_card"}
 
--- `combo` presets add the three *_END moments and the Perfect Combo finale.
-\\FH.SOUND_PRESETS = {
+BFH.SOUND_BY_KEY = {}
+for _, entry in ipairs(BFH.SOUNDS) do BFH.SOUND_BY_KEY[entry.key] = entry end
+
+-- Only a `combo` preset uses the three *_END moments and the finale.
+BFH.SOUND_PRESETS = {
     {key = "majora", name = "Majora", sounds = {
-        SOUL_READY = "zelda_low_health", \\LIGHT_READY = "zelda_tower"}},
+        SOUL_READY = "zelda_low_health", BLIGHT_READY = "zelda_tower"}},
     {key = "uma", name = "Umamusume: Rider of the Apocalypse", combo = true, sounds = {
         SOUL_READY = "combo_1", SOUL_END = "combo_2",
-        \\LIGHT_READY = "combo_3", \\LIGHT_END = "combo_4", PUTREFY_END = "combo_5"}},
-    {key = "bomb", name = "\\omb", sounds = {
-        SOUL_READY = "bomb_loading", \\LIGHT_READY = "bomb_ready"}},
-    {key = "default", name = "\\lizzard", sounds = {
-        SOUL_READY = "ready_check", \\LIGHT_READY = "raid_warning"}},
-    {key = "subtle", name = "Subtle", sounds = {
-        SOUL_READY = "map_ping", \\LIGHT_READY = "quest_complete"}},
-    {key = "silent", name = "Silent", sounds = {}},
+        BLIGHT_READY = "combo_3", BLIGHT_END = "combo_4", PUTREFY_END = "combo_5"}},
+}
+
+-- WoW gives addons no per-sound volume, only the level of a whole channel.
+BFH.CHANNEL_CVAR = {
+    Master = "Sound_MasterVolume",
+    SFX = "Sound_SFXVolume",
+    Music = "Sound_MusicVolume",
+    Ambience = "Sound_AmbienceVolume",
+    Dialog = "Sound_DialogVolume",
 }
 
 local function DeepCopy(v)
@@ -243,6 +248,18 @@ function BFH:GetPreset(key)
     end
 end
 
+function BFH:GetChannelVolume()
+    local cvar = self.CHANNEL_CVAR[self.db.soundChannel] or "Sound_MasterVolume"
+    local get = (C_CVar and C_CVar.GetCVar) or GetCVar
+    return math.floor((tonumber(get(cvar)) or 1) * 100 + 0.5)
+end
+
+function BFH:SetChannelVolume(v)
+    local cvar = self.CHANNEL_CVAR[self.db.soundChannel] or "Sound_MasterVolume"
+    local set = (C_CVar and C_CVar.SetCVar) or SetCVar
+    set(cvar, tostring(math.max(0, math.min(100, v)) / 100))
+end
+
 function BFH:PlaySoundEntry(key)
     local s = self.SOUND_BY_KEY[key]
     if not s then return end
@@ -258,6 +275,14 @@ end
 function BFH:PlayEvent(event)
     local key = self.db.sounds[event]
     if key and key ~= "none" then self:PlaySoundEntry(key) end
+end
+
+-- Flavour sound layered under Soul Reaper's entrance. Combo presets bring
+-- their own audio, so it stays out of their way.
+function BFH:PlayReaperBurn()
+    if self.comboMode or not self.db.reaperBurn then return end
+    local list = self.REAPER_BURN
+    self:PlaySoundEntry(list[math.random(#list)])
 end
 
 function BFH:ApplySoundPreset(presetKey)
@@ -592,6 +617,12 @@ BFH:SetScript("OnEvent", function(self, event, ...)
                 -- the new recommendations.
                 if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
                 if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
+            end
+            if saved < 105 then
+                -- The sound library lost its Blizzard entries and most
+                -- presets, so old picks may no longer exist.
+                BlightfallDB.sounds = nil
+                BlightfallDB.comboMode = nil
             end
             if saved < 104 then
                 -- readySound became the per-event `sounds` table. Picks that

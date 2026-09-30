@@ -59,7 +59,7 @@ function Layer:SetFrame(i)
     local data = self.data
     local page = data.pages[math.floor(i / data.perPage) + 1]
     local idx = i % data.perPage
-    local side = page[2]
+    local cols, uv = page[2], page[3]
 
     if self.lastPath ~= page[1] then
         -- NEAREST keeps the pixel art crisp at any scale.
@@ -68,10 +68,9 @@ function Layer:SetFrame(i)
         self.lastPath = page[1]
     end
 
-    local u = 1 / side
-    local col, row = idx % side, math.floor(idx / side)
-    self.tex:SetTexCoord(col * u, (col + 1) * u, row * u, (row + 1) * u)
-    self.glow:SetTexCoord(col * u, (col + 1) * u, row * u, (row + 1) * u)
+    local col, row = idx % cols, math.floor(idx / cols)
+    self.tex:SetTexCoord(col * uv, (col + 1) * uv, row * uv, (row + 1) * uv)
+    self.glow:SetTexCoord(col * uv, (col + 1) * uv, row * uv, (row + 1) * uv)
 end
 
 -- opts: duration (whole animation) or fps, loop, fadeIn, delay, onDone
@@ -319,6 +318,7 @@ function BFH:ShowStage(stage)
         fadeIn = LOADING_FADE,
         onDone = function() BFH:EnterReady() end,
     })
+    if stage == "SOUL" and AudioAllowed() then self:PlayReaperBurn() end
     self:UpdateTexts()
 end
 

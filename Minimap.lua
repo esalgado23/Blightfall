@@ -75,7 +75,7 @@ function BFH:InitializeMinimapButton()
     local idle = self.ns.AnimData and self.ns.AnimData.blight_idle
     if idle then
         local page = idle.pages[1]
-        local px = 1 / (page[2] * 128) -- one source pixel in texcoords
+        local px = page[3] / idle.cell -- one source pixel in texcoords
         icon:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
         icon:SetTexCoord(30 * px, 94 * px, 30 * px, 94 * px)
     else

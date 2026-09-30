@@ -300,32 +300,20 @@ local OUTLINES = {
     {text = "Monochrome + outline", value = "MONOCHROME,OUTLINE"},
 }
 
+local CHANNELS = {
+    {text = "Master", value = "Master"},
+    {text = "Sound effects", value = "SFX"},
+    {text = "Dialog", value = "Dialog"},
+    {text = "Music", value = "Music"},
+    {text = "Ambience", value = "Ambience"},
+}
+
 local function SoundItems()
     local out = {}
-    for _, s in ipairs(BFH.SOUNDS) do out[#out + 1] = {text = s.name, value = s.key} end
-    return out
-end
-
--- Greys out widgets that only apply to combo presets, so the state is read
--- from one mirrored boolean rather than searched for on every refresh.
-local function ComboOnly(w)
-    local base = w.Refresh
-    w.Refresh = function(self)
-        if base then base(self) end
-        local on = BFH.comboMode and true or false
-        if self.dropdown then
-            self.dropdown:SetEnabled(on)
-        elseif self.SetEnabled then
-            self:SetEnabled(on)
-        end
-        if self.label then
-            self.label:SetFontObject(on and "GameFontHighlight" or "GameFontDisable")
-        elseif self.title then
-            self.title:SetFontObject(on and "GameFontNormal" or "GameFontDisable")
-        end
+    for _, s in ipairs(BFH.SOUNDS) do
+        if not s.hidden then out[#out + 1] = {text = s.name, value = s.key} end
     end
-    if not base then Track(w) end
-    return w
+    return out
 end
 
 local function PresetItems()
@@ -544,54 +532,43 @@ local function BuildStyle(page)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
     Advance(page, 56)
 
-    local function EventDropdown(event, x, comboOnly)
-        local dd = Dropdown(page, BFH.SOUND_EVENT_NAMES[event], 220, SoundItems,
+    local function EventDropdown(parent, event, x)
+        local dd = Dropdown(parent, BFH.SOUND_EVENT_NAMES[event], 220, SoundItems,
             function() return db().sounds[event] end,
             function(v)
                 db().sounds[event] = v
                 BFH:PlaySoundEntry(v)
             end)
-        dd:SetPoint("TOPLEFT", page, "TOPLEFT", x, page.y)
-        if comboOnly then ComboOnly(dd) end
+        dd:SetPoint("TOPLEFT", parent, "TOPLEFT", x, parent.y)
+        return dd
     end
 
-    EventDropdown("SOUL_READY", 16)
-    EventDropdown("BLIGHT_READY", COL2)
+    EventDropdown(page, "SOUL_READY", 16)
+    EventDropdown(page, "BLIGHT_READY", COL2)
     Advance(page, 56)
-    EventDropdown("SOUL_END", 16, true)
-    EventDropdown("BLIGHT_END", COL2, true)
-    Advance(page, 56)
-    EventDropdown("PUTREFY_END", 16, true)
-    Advance(page, 56)
-    Note(page, "The three \"After\" sounds only play with a combo preset such as Umamusume. Changing any sound switches the preset to Custom.")
-    Advance(page, 34)
+    Note(page, "Changing a sound switches the preset to Custom.")
+    Advance(page, 30)
 
-    Header(page, "Perfect Combo")
-    Note(page, "With a combo preset, casting every spell at or after its Ready ends the sequence with a celebration.")
-    Advance(page, 32)
-    ComboOnly(Checkbox(page, "Perfect Combo celebration",
-        function() return db().celebrationEnabled end,
-        function(v) db().celebrationEnabled = v end))
+    Checkbox(page, "Burning card sound when Soul Reaper appears",
+        function() return db().reaperBurn end,
+        function(v) db().reaperBurn = v end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
     Advance(page, 26)
-    local warn = Note(page, "Turning this off feels like doing 10% less dps.", 34)
-    warn:SetTextColor(1, 0.45, 0.35)
-    Advance(page, 28)
-    ComboOnly(Checkbox(page, "Disable it in Mythic+ and Mythic raid",
-        function() return db().celebrationOffInstances end,
-        function(v) db().celebrationOffInstances = v end))
-        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    Advance(page, 36)
-    ComboOnly(Dropdown(page, "Celebration sound", 220, SoundItems,
-        function() return db().celebrationSound end,
-        function(v) db().celebrationSound = v end))
+    Note(page, "One of four card sounds, picked at random. Combo presets use their own audio instead.", 34)
+    Advance(page, 32)
+
+    Dropdown(page, "Sound channel", 220, CHANNELS,
+        function() return db().soundChannel end,
+        function(v) db().soundChannel = v end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
-    local celPreview = Button(page, "Preview celebration", 160, function()
-        BFH:PreviewCelebration()
-    end)
-    celPreview:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 16)
-    ComboOnly(celPreview)
-    Advance(page, 56)
+    Slider(page, "Channel volume", 0, 100, 1,
+        function() return BFH:GetChannelVolume() end,
+        function(v) BFH:SetChannelVolume(v) end,
+        function(v) return v .. "%" end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 52)
+    Note(page, "Blizzard only lets an addon set a channel's level, not one effect's volume, so this slider is WoW's own volume for the channel above and affects the rest of the game too.")
+    Advance(page, 46)
 
     Header(page, "Spoken countdown")
     Checkbox(page, "Spoken countdown",
@@ -609,19 +586,7 @@ local function BuildStyle(page)
         function() return db().audioMode end,
         function(v) db().audioMode = v; if v ~= "TTS" then BFH:StopTTS() end end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
-    Dropdown(page, "Sound channel", 220,
-        {
-            {text = "Master", value = "Master"},
-            {text = "Sound effects", value = "SFX"},
-            {text = "Dialog", value = "Dialog"},
-            {text = "Music", value = "Music"},
-            {text = "Ambience", value = "Ambience"},
-        },
-        function() return db().soundChannel end,
-        function(v) db().soundChannel = v end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
     Advance(page, 56)
-
     Slider(page, "Text-to-speech volume", 0, 100, 1,
         function() return db().ttsVolume end,
         function(v) db().ttsVolume = v end)
@@ -643,6 +608,53 @@ local function BuildStyle(page)
     local test = Button(page, "Test voice", 110, function() BFH:SpeakText("3, 2, 1") end)
     test:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 16)
     Advance(page, 60)
+
+    -- Everything below belongs to combo presets only, so it lives in its own
+    -- frame that is hidden outright instead of greyed out.
+    local combo = CreateFrame("Frame", nil, page)
+    combo:SetPoint("TOPLEFT", page, "TOPLEFT", 0, page.y)
+    combo:SetWidth(CONTENT_WIDTH)
+    combo.y = 0
+
+    Header(combo, "Combo sounds")
+    EventDropdown(combo, "SOUL_END", 16)
+    EventDropdown(combo, "BLIGHT_END", COL2)
+    Advance(combo, 56)
+    EventDropdown(combo, "PUTREFY_END", 16)
+    Advance(combo, 56)
+
+    Header(combo, "Perfect Combo")
+    Note(combo, "Cast every spell at or after its Ready and the sequence ends with a celebration.")
+    Advance(combo, 32)
+    Checkbox(combo, "Perfect Combo celebration",
+        function() return db().celebrationEnabled end,
+        function(v) db().celebrationEnabled = v end)
+        :SetPoint("TOPLEFT", combo, "TOPLEFT", 12, combo.y)
+    Advance(combo, 26)
+    local warn = Note(combo, "WARNING: turning this off will make you do 10% less dps.", 34)
+    warn:SetTextColor(1, 0.3, 0.25)
+    Advance(combo, 18)
+    local joke = Note(combo, "(Or at least it will feel like it.)", 34)
+    joke:SetTextColor(0.6, 0.6, 0.65)
+    Advance(combo, 30)
+    Checkbox(combo, "Turn it off in Mythic+ and Mythic raid",
+        function() return db().celebrationOffInstances end,
+        function(v) db().celebrationOffInstances = v end)
+        :SetPoint("TOPLEFT", combo, "TOPLEFT", 12, combo.y)
+    Advance(combo, 36)
+    Dropdown(combo, "Celebration sound", 220, SoundItems,
+        function() return db().celebrationSound end,
+        function(v) db().celebrationSound = v end)
+        :SetPoint("TOPLEFT", combo, "TOPLEFT", 16, combo.y)
+    local celPreview = Button(combo, "Preview celebration", 160, function()
+        BFH:PreviewCelebration()
+    end)
+    celPreview:SetPoint("TOPLEFT", combo, "TOPLEFT", COL2, combo.y - 16)
+    Advance(combo, 56)
+
+    combo:SetHeight(-combo.y)
+    page.comboSection = combo
+    page.comboHeight = -combo.y
 end
 
 ---------------------------------------------------------------------------
@@ -695,6 +707,8 @@ function BFH:InitializeConfig()
     BuildStyle(style.page)
     general.page:SetHeight(-general.page.y + 10)
     style.page:SetHeight(-style.page.y + 10)
+    style.page.baseHeight = -style.page.y + 10
+    f.stylePage = style.page
     f.pages = {general, style}
 
     local names = {"General", "Style"}
@@ -744,6 +758,12 @@ function BFH:RefreshConfig()
         self.talentStatusText:SetText("Talents:  Soul Reaper " .. Mark(self:HasSoulReaper())
             .. "   Blightfall " .. Mark(self:HasBlightfall())
             .. "   Putrefy " .. Mark(self:HasPutrefy()))
+    end
+    local sp = self.config.stylePage
+    if sp and sp.comboSection then
+        local on = self.comboMode and true or false
+        sp.comboSection:SetShown(on)
+        sp:SetHeight(sp.baseHeight + (on and sp.comboHeight or 0))
     end
     if self.moveButton then
         self.moveButton:SetText(self.db.locked and "Move" or "Lock")
