@@ -77,7 +77,7 @@ function BFH:InitializeMinimapButton()
         local page = idle.pages[1]
         local px = 1 / (page[2] * 128) -- one source pixel in texcoords
         icon:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
-        icon:SetTexCoord(30 * px, 94 * px, 36 * px, 100 * px)
+        icon:SetTexCoord(30 * px, 94 * px, 30 * px, 94 * px)
     else
         icon:SetTexture(self:GetSpellTexture(self.SPELL.BLIGHTFALL))
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)

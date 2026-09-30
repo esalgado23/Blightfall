@@ -410,9 +410,8 @@ local function BuildGeneral(page)
     Header(page, "Timers")
     Note(page, "Take your trinket's effect duration into account; your timers should line up with it too.")
     Advance(page, 28)
-    local rec = string.format("Recommended: %.1fs", BFH.RECOMMENDED_DELAY)
-    Note(page, rec, 16, 300)
-    Note(page, rec, COL2, 300)
+    Note(page, string.format("Recommended: %.1fs", BFH.RECOMMENDED.SOUL), 16, 300)
+    Note(page, string.format("Recommended: %.1fs", BFH.RECOMMENDED.BLIGHT), COL2, 300)
     Advance(page, 18)
     Slider(page, "Soul Reaper after Dark Transformation", 1, 15, 0.1,
         function() return db().soulDelay end,
@@ -619,6 +618,13 @@ function BFH:InitializeConfig()
     if f.SetTitle then f:SetTitle(BFH.FULL_NAME) elseif f.TitleText then f.TitleText:SetText(BFH.FULL_NAME) end
     f:Hide()
     tinsert(UISpecialFrames, "BlightfallConfig")
+
+    -- The template's X goes through Blizzard's panel manager (HideUIPanel),
+    -- which doesn't reliably close addon windows. Close it directly.
+    f.onCloseCallback = function() f:Hide() end
+    if f.CloseButton then
+        f.CloseButton:SetScript("OnClick", function() f:Hide() end)
+    end
 
     local inset = f.Inset or f
     local general = CreatePage(inset)

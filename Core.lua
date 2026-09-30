@@ -5,7 +5,9 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 102
+BFH.SCHEMA = 103
+-- Saved settings older than this are from before the animation redesign.
+local RESET_BELOW_SCHEMA = 102
 
 BFH.MEDIA = "Interface\\AddOns\\Blightfall\\Media\\"
 
@@ -24,7 +26,7 @@ BFH.DEFAULT_NAMES = {
 }
 
 BFH.FULL_NAME = "Blightfall - The Ultimate Death Knight Experience"
-BFH.RECOMMENDED_DELAY = 6.2
+BFH.RECOMMENDED = {SOUL = 9.5, BLIGHT = 6.0}
 
 BFH.LIMITS = {
     SOUL = {1, 15},
@@ -47,8 +49,8 @@ BFH.defaults = {
     minimapMouseoverOnly = false,
     minimapAngle = 225,
     showPutrefy = true,
-    soulDelay = 6.2,
-    blightDelay = 6.2,
+    soulDelay = 9.5,
+    blightDelay = 6.0,
 
     -- Style: animation
     scale = 100,
@@ -458,8 +460,14 @@ BFH:SetScript("OnEvent", function(self, event, ...)
         if name ~= ADDON_NAME then return end
 
         -- Settings from before the animation redesign don't carry over.
-        if type(BlightfallDB) ~= "table" or (tonumber(BlightfallDB.schemaVersion) or 0) < self.SCHEMA then
+        local saved = type(BlightfallDB) == "table" and (tonumber(BlightfallDB.schemaVersion) or 0) or 0
+        if saved < RESET_BELOW_SCHEMA then
             BlightfallDB = {}
+        elseif saved < 103 then
+            -- 6.2s was the old default for both; move untouched values to
+            -- the new recommendations.
+            if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
+            if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
         end
         CopyDefaults(self.defaults, BlightfallDB)
         BlightfallDB.schemaVersion = self.SCHEMA
