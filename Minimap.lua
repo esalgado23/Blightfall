@@ -70,8 +70,18 @@ function BFH:InitializeMinimapButton()
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetSize(22, 22)
     icon:SetPoint("CENTER")
-    icon:SetTexture(self:GetSpellTexture(self.SPELL.BLIGHTFALL))
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    -- Zoom on the orb in the first frame of Blightfall's Idle animation;
+    -- fall back to the spell icon if the animation textures are missing.
+    local idle = self.ns.AnimData and self.ns.AnimData.blight_idle
+    if idle then
+        local page = idle.pages[1]
+        local px = 1 / (page[2] * 128) -- one source pixel in texcoords
+        icon:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
+        icon:SetTexCoord(20 * px, 104 * px, 18 * px, 102 * px)
+    else
+        icon:SetTexture(self:GetSpellTexture(self.SPELL.BLIGHTFALL))
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
     ApplyCircleMask(icon, b, 22)
 
     -- HOVER RING
@@ -92,7 +102,7 @@ function BFH:InitializeMinimapButton()
         self.hover:SetVertexColor(1, 1, 1, 0.10)
 
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("Blightfall", 0.78, 0.38, 1)
+        GameTooltip:AddLine(BFH.FULL_NAME, 0.78, 0.38, 1)
         GameTooltip:AddLine("Left-click: Open settings", 1, 1, 1)
         GameTooltip:AddLine("Drag: Move around the minimap rim", 0.72, 0.75, 0.82)
         GameTooltip:Show()

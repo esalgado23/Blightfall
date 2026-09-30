@@ -5,7 +5,7 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 100
+BFH.SCHEMA = 101
 
 BFH.MEDIA = "Interface\\AddOns\\Blightfall\\Media\\"
 
@@ -23,6 +23,9 @@ BFH.DEFAULT_NAMES = {
     BLIGHT = "Blightfall",
     PUTREFY = "Putrefy",
 }
+
+BFH.FULL_NAME = "Blightfall - The Ultimate Death Knight Experience"
+BFH.RECOMMENDED_DELAY = 6.2
 
 BFH.LIMITS = {
     SOUL = {1, 15},
@@ -45,7 +48,7 @@ BFH.defaults = {
     minimapMouseoverOnly = false,
     minimapAngle = 225,
     showPutrefy = true,
-    soulDelay = 9.0,
+    soulDelay = 6.2,
     blightDelay = 6.2,
 
     -- Style: animation
@@ -57,12 +60,12 @@ BFH.defaults = {
     -- Style: countdown text (shown while loading)
     counter = {
         show = true,
-        font = FONT_OLDBITZ,
-        fontName = "Oldbitz",
+        font = FONT_DTM,
+        fontName = "DTM Mono",
         size = 18,
-        outline = "OUTLINE",
+        outline = "MONOCHROME",
         color = {1, 1, 1, 1},
-        shadow = true,
+        shadow = false,
         shadowColor = {0, 0, 0, 1},
         x = 0,
         y = 0,
@@ -72,13 +75,13 @@ BFH.defaults = {
     -- Style: spell name under the animation
     label = {
         show = true,
-        font = FONT_DTM,
-        fontName = "DTM Mono",
+        font = FONT_OLDBITZ,
+        fontName = "Oldbitz",
         size = 14,
-        outline = "OUTLINE",
-        color = {1, 1, 1, 1},
+        outline = "MONOCHROME",
+        color = {0xFC / 255, 0xBC / 255, 0x31 / 255, 1}, -- #FCBC31
         shadow = true,
-        shadowColor = {0, 0, 0, 1},
+        shadowColor = {0xCC / 255, 0x44 / 255, 0x19 / 255, 1}, -- #CC4419
         x = 0,
         y = -2,
     },
@@ -351,47 +354,64 @@ function BFH:GetDarkTransformationName()
     return "Dark Transformation"
 end
 
-function BFH:HasDarkTransformationAura()
+-- Midnight hides many combat values from addons ("secret values"). Anything
+-- secret must be treated as unknown, never compared or used as a table key.
+local function IsSecret(v)
+    return issecretvalue ~= nil and issecretvalue(v) and true or false
+end
+BFH.IsSecret = IsSecret
+
+-- Returns true (DT is on the pet), false (definitely not), or nil when the
+-- client won't tell us. Only a readable aura list can prove DT is gone:
+-- in combat the pet's auras may be hidden, and that is not the same as DT
+-- having ended.
+function BFH:ScanDarkTransformation()
     if not UnitExists("pet") then
         return false
     end
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then
+        return nil
+    end
 
-    local wantedName = self:GetDarkTransformationName()
-    local auraIDs = {
+    local ids = {
         [self.SPELL.DARK_TRANSFORMATION_AURA] = true,
         [self.SPELL.DARK_TRANSFORMATION] = true,
         [63560] = true, -- legacy/client fallback
     }
+    local wantedName = self:GetDarkTransformationName()
+    local readable, hidden = 0, 0
 
-    if C_UnitAuras and type(C_UnitAuras.GetAuraDataByIndex) == "function" then
-        for i = 1, 60 do
-            local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, "pet", i, "HELPFUL")
-            if not ok or not aura then break end
+    for i = 1, 60 do
+        local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, "pet", i, "HELPFUL")
+        if not ok then
+            hidden = hidden + 1
+            break
+        end
+        if not aura then break end
 
-            local id = aura.spellId or aura.spellID
-            local name = aura.name
-            if auraIDs[id] or (name and wantedName and name == wantedName) then
+        local id, name = aura.spellId, aura.name
+        if IsSecret(id) or IsSecret(name) then
+            hidden = hidden + 1
+        else
+            readable = readable + 1
+            if ids[id] or (name and name == wantedName) then
+                local expires = aura.expirationTime
+                if expires and not IsSecret(expires) and expires > 0 then
+                    self.dtExpires = expires
+                end
                 return true
             end
         end
     end
 
-    if AuraUtil and type(AuraUtil.FindAuraBySpellID) == "function" then
-        for spellID in pairs(auraIDs) do
-            local ok, aura = pcall(AuraUtil.FindAuraBySpellID, spellID, "pet", "HELPFUL")
-            if ok and aura then return true end
-        end
-    end
-
+    if hidden > 0 then return nil end
+    if readable == 0 and InCombatLockdown() then return nil end
     return false
 end
 
--- Returns true/false, or nil when the client refuses to tell us (e.g. aura
--- data restricted in combat). nil must never be treated as "DT ended".
-function BFH:SafeHasDarkTransformation()
-    local ok, active = pcall(self.HasDarkTransformationAura, self)
-    if not ok then return nil end
-    return active
+-- Debug output toggled with /bf debug.
+function BFH:Debug(...)
+    if self.debug then print("|cff9f1cffBlightfall debug:|r", ...) end
 end
 
 function BFH:StopDarkTransformationWatcher()
@@ -404,13 +424,30 @@ end
 function BFH:CheckDarkTransformation()
     if not self.dtActive then return end
 
-    local active = self:SafeHasDarkTransformation()
-    if active == nil then return end
+    local ok, active = pcall(self.ScanDarkTransformation, self)
+    if not ok then active = nil end
+
+    if active ~= self.lastDTScan then
+        self.lastDTScan = active
+        self:Debug("DT scan:", active == nil and "unknown" or tostring(active),
+            InCombatLockdown() and "(in combat)" or "")
+    end
+
+    if active == nil then
+        -- Can't see the aura right now. If we know when it was due to
+        -- expire, trust that instead.
+        if self.dtAuraSeen and self.dtExpires and GetTime() > self.dtExpires + 0.3 then
+            self:Debug("DT ended (expiration time passed)")
+            self:OnDarkTransformationEnded()
+        end
+        return
+    end
 
     if active then
         self.dtAuraSeen = true
     elseif self.dtAuraSeen then
         -- Only treat absence as the end once DT was actually seen on the pet.
+        self:Debug("DT ended (aura gone)")
         self:OnDarkTransformationEnded()
     end
 end
@@ -438,6 +475,8 @@ function BFH:OnDarkTransformation()
 
     self.dtActive = true
     self.dtAuraSeen = false
+    self.dtExpires = nil
+    self.lastDTScan = nil
     self:StartDarkTransformationWatcher()
     C_Timer.After(0.10, function() BFH:CheckDarkTransformation() end)
 
@@ -478,6 +517,7 @@ function BFH:OnPutrefy()
 end
 
 function BFH:OnDarkTransformationEnded()
+    self:Debug("Dark Transformation ended, stage:", tostring(self.stage))
     self.dtActive = false
     self:StopDarkTransformationWatcher()
     if self.preview then return end
@@ -496,11 +536,16 @@ function BFH:OnDarkTransformationEnded()
 end
 
 function BFH:HandleSpell(spellID)
+    if IsSecret(spellID) then
+        self:Debug("cast with hidden spell ID ignored")
+        return
+    end
     self.hasSoulReaper = self:HasSoulReaper()
     self.hasBlightfall = self:HasBlightfall()
     self.hasPutrefy = self:HasPutrefy()
 
     if spellID == self.SPELL.DARK_TRANSFORMATION then
+        self:Debug("Dark Transformation cast")
         self:OnDarkTransformation()
         return
     end
@@ -508,10 +553,13 @@ function BFH:HandleSpell(spellID)
     if self.preview then return end
 
     if spellID == self.SPELL.SOUL_REAPER then
+        self:Debug("Soul Reaper cast, stage:", tostring(self.stage))
         self:OnSoulReaper()
     elseif spellID == self.SPELL.BLIGHTFALL then
+        self:Debug("Blightfall cast, stage:", tostring(self.stage), "DT active:", tostring(self.dtActive))
         self:OnBlightfall()
     elseif spellID == self.SPELL.PUTREFY then
+        self:Debug("Putrefy cast, stage:", tostring(self.stage))
         self:OnPutrefy()
     end
 end
@@ -535,6 +583,8 @@ BFH:RegisterEvent("PLAYER_ENTERING_WORLD")
 BFH:RegisterEvent("PLAYER_TALENT_UPDATE")
 BFH:RegisterEvent("SPELLS_CHANGED")
 BFH:RegisterEvent("TRAIT_CONFIG_UPDATED")
+BFH:RegisterEvent("PLAYER_REGEN_DISABLED")
+BFH:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 BFH:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
@@ -565,6 +615,9 @@ BFH:SetScript("OnEvent", function(self, event, ...)
                 self:StartPreview("SOUL")
             elseif msg == "stop" then
                 self:StopPreview()
+            elseif msg == "debug" then
+                self.debug = not self.debug
+                print("|cff9f1cffBlightfall|r debug " .. (self.debug and "on" or "off"))
             else
                 self:ToggleConfig()
             end
@@ -580,6 +633,9 @@ BFH:SetScript("OnEvent", function(self, event, ...)
     elseif event == "UNIT_AURA" then
         local unit = ...
         if unit == "pet" then self:CheckDarkTransformation() end
+    elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+        self:Debug(event == "PLAYER_REGEN_DISABLED" and "combat started" or "combat ended")
+        self:CheckDarkTransformation()
     elseif event == "UNIT_PET" then
         self:CheckDarkTransformation()
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then

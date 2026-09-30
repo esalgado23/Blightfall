@@ -393,15 +393,27 @@ local function BuildGeneral(page)
         function() return db().showMinimapButton end,
         function(v) db().showMinimapButton = v; BFH:UpdateMinimapButton() end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    Checkbox(page, "Only show on mouseover",
+    local hover = Checkbox(page, "Only show on mouseover",
         function() return db().minimapMouseoverOnly end,
         function(v) db().minimapMouseoverOnly = v; BFH:UpdateMinimapButton() end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    hover:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    -- Mouseover only means something while the button is shown.
+    local baseRefresh = hover.Refresh
+    hover.Refresh = function(self)
+        baseRefresh(self)
+        local enabled = db().showMinimapButton ~= false
+        self:SetEnabled(enabled)
+        self.label:SetFontObject(enabled and "GameFontHighlight" or "GameFontDisable")
+    end
     Advance(page, 36)
 
     Header(page, "Timers")
     Note(page, "Take your trinket's effect duration into account; your timers should line up with it too.")
     Advance(page, 28)
+    local rec = string.format("Recommended: %.1fs", BFH.RECOMMENDED_DELAY)
+    Note(page, rec, 16, 300)
+    Note(page, rec, COL2, 300)
+    Advance(page, 18)
     Slider(page, "Soul Reaper after Dark Transformation", 1, 15, 0.1,
         function() return db().soulDelay end,
         function(v) db().soulDelay = v end,
@@ -599,7 +611,7 @@ function BFH:InitializeConfig()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    if f.SetTitle then f:SetTitle("Blightfall") elseif f.TitleText then f.TitleText:SetText("Blightfall") end
+    if f.SetTitle then f:SetTitle(BFH.FULL_NAME) elseif f.TitleText then f.TitleText:SetText(BFH.FULL_NAME) end
     f:Hide()
     tinsert(UISpecialFrames, "BlightfallConfig")
 

@@ -10,6 +10,15 @@
 - Optional flash when N seconds of loading remain (placeholder effect).
 - Ready sound per spell with presets (placeholder sounds), alongside the spoken countdown.
 
+### Fixes and tweaks
+- Fixed timers disappearing as soon as combat started: hidden aura data in combat is no longer mistaken for Dark Transformation ending. If the aura can't be read, its known expiration time is used instead.
+- Casts with hidden spell IDs are ignored instead of causing errors.
+- New `/bf debug` command prints casts, Dark Transformation checks and combat changes to chat.
+- Countdown and spell name fade in with the animation.
+- Defaults: both timers 6.2s (shown as recommended); countdown in DTM Mono, monochrome, no shadow; spell name in Oldbitz, monochrome, #FCBC31 with #CC4419 shadow.
+- Minimap icon is now the Blightfall orb; window title and minimap tooltip show the full addon name.
+- "Only show on mouseover" is disabled while the minimap button is hidden.
+
 ### Settings
 - New Blizzard-style window with two tabs (General, Style) and scrolling; opened with `/bf` or the minimap button.
 - Style: animation size 1-300% with 1x/2x/3x shortcuts; countdown text and spell name each with font, size, outline, colour, shadow and X/Y offset; editable spell names.

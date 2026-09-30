@@ -413,6 +413,8 @@ end
 function BFH:OnDisplayUpdate(elapsed)
     main:Update(elapsed)
     outro:Update(elapsed)
+    -- Countdown and spell name fade in together with the animation.
+    textFrame:SetAlpha(main.frame:IsShown() and main.frame:GetAlpha() or 1)
 
     if self.preview and self.previewNext and GetTime() >= self.previewNext then
         AdvancePreview()
