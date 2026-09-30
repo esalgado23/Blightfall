@@ -137,6 +137,7 @@ local function Dropdown(parent, text, width, items, getter, setter)
     local title = wrap:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     title:SetPoint("TOPLEFT", 0, 0)
     title:SetText(text)
+    wrap.title = title
 
     local dd = CreateFrame("DropdownButton", nil, wrap, "WowStyle1DropdownTemplate")
     dd:SetPoint("TOPLEFT", 0, -16)
@@ -303,6 +304,28 @@ local function SoundItems()
     local out = {}
     for _, s in ipairs(BFH.SOUNDS) do out[#out + 1] = {text = s.name, value = s.key} end
     return out
+end
+
+-- Greys out widgets that only apply to combo presets, so the state is read
+-- from one mirrored boolean rather than searched for on every refresh.
+local function ComboOnly(w)
+    local base = w.Refresh
+    w.Refresh = function(self)
+        if base then base(self) end
+        local on = BFH.comboMode and true or false
+        if self.dropdown then
+            self.dropdown:SetEnabled(on)
+        elseif self.SetEnabled then
+            self:SetEnabled(on)
+        end
+        if self.label then
+            self.label:SetFontObject(on and "GameFontHighlight" or "GameFontDisable")
+        elseif self.title then
+            self.title:SetFontObject(on and "GameFontNormal" or "GameFontDisable")
+        end
+    end
+    if not base then Track(w) end
+    return w
 end
 
 local function PresetItems()
@@ -514,21 +537,60 @@ local function BuildStyle(page)
     Advance(page, 8)
     TextStyleBlock(page, function() return db().label end, 200)
 
-    Header(page, "Ready sound")
-    Dropdown(page, "Preset", 220, PresetItems,
+    Header(page, "Sounds")
+    Dropdown(page, "Preset", 340, PresetItems,
         function() return BFH:GetMatchingPreset() end,
         function(v) if v ~= "custom" then BFH:ApplySoundPreset(v) end end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
     Advance(page, 56)
-    for i, stage in ipairs({"SOUL", "BLIGHT"}) do
-        local dd = Dropdown(page, BFH.DEFAULT_NAMES[stage], 220, SoundItems,
-            function() return db().readySound[stage] end,
+
+    local function EventDropdown(event, x, comboOnly)
+        local dd = Dropdown(page, BFH.SOUND_EVENT_NAMES[event], 220, SoundItems,
+            function() return db().sounds[event] end,
             function(v)
-                db().readySound[stage] = v
+                db().sounds[event] = v
                 BFH:PlaySoundEntry(v)
             end)
-        dd:SetPoint("TOPLEFT", page, "TOPLEFT", i == 1 and 16 or COL2, page.y)
+        dd:SetPoint("TOPLEFT", page, "TOPLEFT", x, page.y)
+        if comboOnly then ComboOnly(dd) end
     end
+
+    EventDropdown("SOUL_READY", 16)
+    EventDropdown("BLIGHT_READY", COL2)
+    Advance(page, 56)
+    EventDropdown("SOUL_END", 16, true)
+    EventDropdown("BLIGHT_END", COL2, true)
+    Advance(page, 56)
+    EventDropdown("PUTREFY_END", 16, true)
+    Advance(page, 56)
+    Note(page, "The three \"After\" sounds only play with a combo preset such as Umamusume. Changing any sound switches the preset to Custom.")
+    Advance(page, 34)
+
+    Header(page, "Perfect Combo")
+    Note(page, "With a combo preset, casting every spell at or after its Ready ends the sequence with a celebration.")
+    Advance(page, 32)
+    ComboOnly(Checkbox(page, "Perfect Combo celebration",
+        function() return db().celebrationEnabled end,
+        function(v) db().celebrationEnabled = v end))
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 26)
+    local warn = Note(page, "Turning this off feels like doing 10% less dps.", 34)
+    warn:SetTextColor(1, 0.45, 0.35)
+    Advance(page, 28)
+    ComboOnly(Checkbox(page, "Disable it in Mythic+ and Mythic raid",
+        function() return db().celebrationOffInstances end,
+        function(v) db().celebrationOffInstances = v end))
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 36)
+    ComboOnly(Dropdown(page, "Celebration sound", 220, SoundItems,
+        function() return db().celebrationSound end,
+        function(v) db().celebrationSound = v end))
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    local celPreview = Button(page, "Preview celebration", 160, function()
+        BFH:PreviewCelebration()
+    end)
+    celPreview:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 16)
+    ComboOnly(celPreview)
     Advance(page, 56)
 
     Header(page, "Spoken countdown")

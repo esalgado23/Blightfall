@@ -13,7 +13,12 @@ local SOUL_FADE_OUT = 0.5
 
 local PREFIX = {SOUL = "reaper", BLIGHT = "blight"}
 
-local display, main, outro, textFrame, counter, label, dragOverlay
+-- The finale sheet was drawn on a 188px canvas, so it is shown that much
+-- larger than the 128px spell animations to keep the artist's proportions.
+local CELEBRATION_FPS = 60
+local CELEBRATION_RATIO = 188 / 128
+
+local display, main, outro, celebration, textFrame, counter, label, perfect, dragOverlay
 
 local function Clamp(v, lo, hi)
     v = tonumber(v) or lo
@@ -29,10 +34,10 @@ end
 local Layer = {}
 Layer.__index = Layer
 
-local function NewLayer(parent, levelOffset)
+local function NewLayer(parent, levelOffset, freeSize)
     local l = setmetatable({}, Layer)
     l.frame = CreateFrame("Frame", nil, parent)
-    l.frame:SetAllPoints(parent)
+    if not freeSize then l.frame:SetAllPoints(parent) end
     l.frame:SetFrameLevel(parent:GetFrameLevel() + levelOffset)
     l.frame:Hide()
 
@@ -102,6 +107,12 @@ end
 
 function Layer:IsPending()
     return self.playing and self.t < 0
+end
+
+-- Seconds left before a delayed animation actually starts.
+function Layer:PendingTime()
+    if self.playing and self.t < 0 then return -self.t end
+    return 0
 end
 
 function Layer:Update(elapsed)
@@ -179,6 +190,8 @@ function BFH:InitializeDisplay()
 
     main = NewLayer(display, 2)
     outro = NewLayer(display, 4)
+    celebration = NewLayer(display, 6, true)
+    celebration.frame:SetPoint("CENTER", display, "CENTER")
 
     textFrame = CreateFrame("Frame", nil, display)
     textFrame:SetAllPoints(display)
@@ -188,6 +201,10 @@ function BFH:InitializeDisplay()
     counter:SetJustifyH("CENTER")
     label = textFrame:CreateFontString(nil, "OVERLAY")
     label:SetJustifyH("CENTER")
+    perfect = textFrame:CreateFontString(nil, "OVERLAY")
+    perfect:SetJustifyH("CENTER")
+    perfect:SetText("PERFECT COMBO")
+    perfect:Hide()
 
     dragOverlay = CreateFrame("Frame", nil, display, "BackdropTemplate")
     dragOverlay:SetAllPoints(display)
@@ -257,6 +274,13 @@ function BFH:ApplyDisplaySettings()
     label:ClearAllPoints()
     label:SetPoint("CENTER", display, "CENTER", d.label.x or 0, d.label.y or 0)
 
+    ApplyFontString(perfect, d.label)
+    perfect:ClearAllPoints()
+    perfect:SetPoint("CENTER", display, "CENTER", d.label.x or 0, d.label.y or 0)
+
+    local cs = size * CELEBRATION_RATIO
+    celebration.frame:SetSize(cs, cs)
+
     dragOverlay:SetShown(not d.locked)
     self:UpdateTexts()
 end
@@ -302,7 +326,7 @@ function BFH:EnterReady()
     local stage = self.stage
     if not PREFIX[stage] then return end
     self.phase = "READY"
-    if AudioAllowed() then self:PlayReadySound(stage) end
+    if AudioAllowed() then self:PlayEvent(stage .. "_READY") end
     main:Play(PREFIX[stage] .. "_ready", {fps = FPS, onDone = function() BFH:EnterIdle() end})
     self:UpdateTexts()
 end
@@ -346,7 +370,49 @@ function BFH:PlayOnUse(stage)
     else
         key = PREFIX[stage] .. "_onuse"
     end
-    outro:Play(key, {fps = FPS, onDone = function() outro:Stop() end})
+    outro:Play(key, {
+        fps = FPS,
+        onDone = function()
+            outro:Stop()
+            BFH:OnOnUseFinished(stage)
+        end,
+    })
+end
+
+-- Pressing Putrefy before its card appears is allowed, so the OnUse waits
+-- for the pending delay instead of cutting Blightfall's OnUse short.
+function BFH:CastPutrefy()
+    local delay = main:PendingTime()
+    self:ClearMain()
+    self.putrefyToken = (self.putrefyToken or 0) + 1
+    local token = self.putrefyToken
+    if delay > 0 then
+        C_Timer.After(delay, function()
+            if BFH.putrefyToken == token then BFH:PlayOnUse("PUTREFY") end
+        end)
+    else
+        self:PlayOnUse("PUTREFY")
+    end
+end
+
+function BFH:ShowCelebration()
+    if not celebration then return end
+    celebration:Play("celebration", {
+        fps = CELEBRATION_FPS,
+        onDone = function() BFH:HideCelebration() end,
+    })
+    perfect:SetShown(self.db.label.show and true or false)
+end
+
+function BFH:HideCelebration()
+    if not celebration then return end
+    celebration:Stop()
+    perfect:Hide()
+end
+
+function BFH:PreviewCelebration()
+    self:StopCelebration()
+    self:StartCelebration()
 end
 
 function BFH:ClearMain()
@@ -361,6 +427,8 @@ end
 function BFH:ClearAll()
     self:ClearMain()
     if outro then outro:Stop() end
+    self.putrefyToken = (self.putrefyToken or 0) + 1
+    self:StopCelebration()
 end
 
 ---------------------------------------------------------------------------
@@ -431,6 +499,11 @@ end
 function BFH:OnDisplayUpdate(elapsed)
     main:Update(elapsed)
     outro:Update(elapsed)
+    celebration:Update(elapsed)
+    if perfect:IsShown() then
+        -- The text blinks; the animation behind it does not.
+        perfect:SetAlpha(0.55 + 0.45 * math.sin(GetTime() * math.pi * 5))
+    end
     -- Countdown and spell name fade in together with the animation.
     textFrame:SetAlpha(main.frame:IsShown() and main.frame:GetAlpha() or 1)
 
@@ -443,6 +516,8 @@ function BFH:OnDisplayUpdate(elapsed)
         main:FadeOut(SOUL_FADE_OUT, function() BFH:ClearMain() end)
     elseif not self.preview and self.stage == "PUTREFY" and GetTime() >= (self.putrefyExpire or 0) then
         self:Debug("Putrefy timed out")
+        -- Letting the card run out is not a completed combo.
+        self:MissCombo("Putrefy never cast")
         self:PlayOnUse("PUTREFY")
         self:ClearMain()
         return
@@ -467,7 +542,7 @@ function BFH:OnDisplayUpdate(elapsed)
         local pulse = 0.5 + 0.5 * math.sin(GetTime() * math.pi * 6)
         main.glow:SetAlpha(0.55 * pulse)
         main.glow:Show()
-    else
+    elseif main.glow:IsShown() then
         main.glow:Hide()
     end
 

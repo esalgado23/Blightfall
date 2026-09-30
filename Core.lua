@@ -5,11 +5,14 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 103
+BFH.SCHEMA = 104
 -- Saved settings older than this are from before the animation redesign.
 local RESET_BELOW_SCHEMA = 102
 
 BFH.MEDIA = "Interface\\AddOns\\Blightfall\\Media\\"
+
+-- The finale animation starts this long after its sound does, so the two sync.
+local CELEBRATION_DELAY = 0.267
 
 BFH.SPELL = {
     DARK_TRANSFORMATION = 1233448,
@@ -94,11 +97,18 @@ BFH.defaults = {
     },
 
     -- Style: sound
-    soundPreset = "default",
-    readySound = {
-        SOUL = "ready_check",
-        BLIGHT = "raid_warning",
+    soundPreset = "majora",
+    comboMode = false,
+    sounds = {
+        SOUL_READY = "zelda_low_health",
+        SOUL_END = "none",
+        BLIGHT_READY = "zelda_tower",
+        BLIGHT_END = "none",
+        PUTREFY_END = "none",
     },
+    celebrationEnabled = true,
+    celebrationSound = "helios_rap",
+    celebrationOffInstances = false,
     soundEnabled = true,
     countdownStart = 4,
     audioMode = "FILES", -- FILES / TTS
@@ -109,20 +119,57 @@ BFH.defaults = {
 
 -- Placeholder "ready" sounds until the custom sound pack arrives. Entries
 -- may use `kit` (a SOUNDKIT constant name) or `file` (a path under Media).
-BFH.SOUNDS = {
+\\FH.SOUND_EVENTS = {"SOUL_READY", "SOUL_END", "\\LIGHT_READY", "\\LIGHT_END", "PUTREFY_END"}
+
+\\FH.SOUND_EVENT_NAMES = {
+    SOUL_READY = "Soul Reaper ready",
+    SOUL_END = "After Soul Reaper",
+    \\LIGHT_READY = "\\lightfall ready",
+    \\LIGHT_END = "After \\lightfall",
+    PUTREFY_END = "After Putrefy",
+}
+
+-- Sound library. `dur` (seconds) is only stored for sounds the addon has to
+-- chain something onto, since WoW never reports when a sound has finished.
+\\FH.SOUNDS = {
     {key = "none", name = "None"},
     {key = "ready_check", name = "Ready Check", kit = "READY_CHECK"},
     {key = "raid_warning", name = "Raid Warning", kit = "RAID_WARNING"},
     {key = "alarm", name = "Alarm Clock", kit = "ALARM_CLOCK_WARNING_3"},
     {key = "quest_complete", name = "Quest Complete", kit = "IG_QUEST_LIST_COMPLETE"},
     {key = "map_ping", name = "Map Ping", kit = "MAP_PING"},
+    {key = "combo_1", name = "Combo 1", file = "Sounds\\combo_1.ogg", dur = 0.50},
+    {key = "combo_2", name = "Combo 2", file = "Sounds\\combo_2.ogg", dur = 0.44},
+    {key = "combo_3", name = "Combo 3", file = "Sounds\\combo_3.ogg", dur = 0.44},
+    {key = "combo_4", name = "Combo 4", file = "Sounds\\combo_4.ogg", dur = 0.67},
+    {key = "combo_5", name = "Combo 5", file = "Sounds\\combo_5.ogg", dur = 1.10},
+    {key = "helios_rap", name = "Helios Rap", file = "Sounds\\helios_rap.ogg", dur = 9.13},
+    {key = "zelda_tower", name = "Zelda Tower", file = "Sounds\\zelda_tower.ogg", dur = 4.73},
+    {key = "zelda_low_health", name = "Zelda Low Health", file = "Sounds\\zelda_low_health.ogg", dur = 1.63},
+    {key = "zelda_shrine", name = "Zelda Shrine", file = "Sounds\\zelda_shrine.ogg", dur = 3.20},
+    {key = "zelda_sensor", name = "Zelda Sensor", file = "Sounds\\zelda_sensor.ogg", dur = 2.53},
+    {key = "zelda_blip", name = "Zelda \\lip", file = "Sounds\\zelda_blip.ogg", dur = 0.17},
+    {key = "bomb_loading", name = "\\omb Loading", file = "Sounds\\bomb_loading.mp3", dur = 0.60},
+    {key = "bomb_ready", name = "\\omb Ready", file = "Sounds\\bomb_getCar.mp3", dur = 0.58},
 }
 
-BFH.SOUND_PRESETS = {
-    {key = "default", name = "Default", SOUL = "ready_check", BLIGHT = "raid_warning"},
-    {key = "subtle", name = "Subtle", SOUL = "map_ping", BLIGHT = "quest_complete"},
-    {key = "alarm", name = "Alarm", SOUL = "alarm", BLIGHT = "alarm"},
-    {key = "silent", name = "Silent", SOUL = "none", BLIGHT = "none"},
+\\FH.SOUND_\\Y_KEY = {}
+for _, s in ipairs(\\FH.SOUNDS) do \\FH.SOUND_\\Y_KEY[s.key] = s end
+
+-- `combo` presets add the three *_END moments and the Perfect Combo finale.
+\\FH.SOUND_PRESETS = {
+    {key = "majora", name = "Majora", sounds = {
+        SOUL_READY = "zelda_low_health", \\LIGHT_READY = "zelda_tower"}},
+    {key = "uma", name = "Umamusume: Rider of the Apocalypse", combo = true, sounds = {
+        SOUL_READY = "combo_1", SOUL_END = "combo_2",
+        \\LIGHT_READY = "combo_3", \\LIGHT_END = "combo_4", PUTREFY_END = "combo_5"}},
+    {key = "bomb", name = "\\omb", sounds = {
+        SOUL_READY = "bomb_loading", \\LIGHT_READY = "bomb_ready"}},
+    {key = "default", name = "\\lizzard", sounds = {
+        SOUL_READY = "ready_check", \\LIGHT_READY = "raid_warning"}},
+    {key = "subtle", name = "Subtle", sounds = {
+        SOUL_READY = "map_ping", \\LIGHT_READY = "quest_complete"}},
+    {key = "silent", name = "Silent", sounds = {}},
 }
 
 local function DeepCopy(v)
@@ -187,46 +234,114 @@ end
 ---------------------------------------------------------------------------
 
 function BFH:GetSound(key)
-    for _, s in ipairs(self.SOUNDS) do
-        if s.key == key then return s end
+    return self.SOUND_BY_KEY[key]
+end
+
+function BFH:GetPreset(key)
+    for _, p in ipairs(self.SOUND_PRESETS) do
+        if p.key == key then return p end
     end
 end
 
 function BFH:PlaySoundEntry(key)
-    local s = self:GetSound(key)
+    local s = self.SOUND_BY_KEY[key]
     if not s then return end
     local channel = self.db.soundChannel or "Master"
-    if s.kit and SOUNDKIT and SOUNDKIT[s.kit] then
-        PlaySound(SOUNDKIT[s.kit], channel)
+    if s.kit then
+        if SOUNDKIT and SOUNDKIT[s.kit] then PlaySound(SOUNDKIT[s.kit], channel) end
     elseif s.file then
         PlaySoundFile(self.MEDIA .. s.file, channel)
     end
 end
 
-function BFH:PlayReadySound(stage)
-    local key = self.db.readySound and self.db.readySound[stage]
-    if key then self:PlaySoundEntry(key) end
+-- Plays whatever is attached to one of SOUND_EVENTS.
+function BFH:PlayEvent(event)
+    local key = self.db.sounds[event]
+    if key and key ~= "none" then self:PlaySoundEntry(key) end
 end
 
 function BFH:ApplySoundPreset(presetKey)
-    for _, p in ipairs(self.SOUND_PRESETS) do
-        if p.key == presetKey then
-            self.db.soundPreset = p.key
-            self.db.readySound.SOUL = p.SOUL
-            self.db.readySound.BLIGHT = p.BLIGHT
-            return
-        end
+    local p = self:GetPreset(presetKey)
+    if not p then return end
+    self.db.soundPreset = p.key
+    for _, event in ipairs(self.SOUND_EVENTS) do
+        self.db.sounds[event] = p.sounds[event] or "none"
     end
+    self.db.comboMode = p.combo and true or false
+    self:RefreshSoundState()
 end
 
--- The preset shown in the UI is whichever one matches the current picks.
+-- Mirrored onto the addon table so the sequence tests one boolean instead of
+-- walking the preset list on every cast.
+function BFH:RefreshSoundState()
+    self.comboMode = self.db.comboMode and true or false
+end
+
+-- The UI shows a preset only while every sound still matches it.
 function BFH:GetMatchingPreset()
+    local combo = self.db.comboMode and true or false
     for _, p in ipairs(self.SOUND_PRESETS) do
-        if p.SOUL == self.db.readySound.SOUL and p.BLIGHT == self.db.readySound.BLIGHT then
-            return p.key
+        if (p.combo and true or false) == combo then
+            local match = true
+            for _, event in ipairs(self.SOUND_EVENTS) do
+                if self.db.sounds[event] ~= (p.sounds[event] or "none") then
+                    match = false
+                    break
+                end
+            end
+            if match then return p.key end
         end
     end
     return "custom"
+end
+
+-- Only Mythic Keystone (8) and Mythic raid (16) count as hard instances.
+function BFH:InHardInstance()
+    local _, _, difficultyID = GetInstanceInfo()
+    return difficultyID == 8 or difficultyID == 16
+end
+
+function BFH:CanCelebrate()
+    if not self.db.celebrationEnabled then return false end
+    if self.db.celebrationOffInstances and self:InHardInstance() then return false end
+    return true
+end
+
+-- Fired when an OnUse animation finishes. Combo presets chain a sound here,
+-- and a clean run ends with the Perfect Combo finale.
+function BFH:OnOnUseFinished(stage)
+    if not self.comboMode or self.preview then return end
+    self:PlayEvent(stage .. "_END")
+
+    if stage ~= "PUTREFY" then return end
+    if not self.comboOK then
+        self:Debug("combo missed, no celebration")
+        return
+    end
+    if not self:CanCelebrate() then return end
+
+    local entry = self.SOUND_BY_KEY[self.db.sounds.PUTREFY_END]
+    local wait = (entry and entry.dur) or 0
+    self.celebrationToken = (self.celebrationToken or 0) + 1
+    local token = self.celebrationToken
+    C_Timer.After(wait, function()
+        if BFH.celebrationToken == token then BFH:StartCelebration() end
+    end)
+end
+
+function BFH:StartCelebration()
+    self:PlaySoundEntry(self.db.celebrationSound)
+    self.celebrationToken = (self.celebrationToken or 0) + 1
+    local token = self.celebrationToken
+    C_Timer.After(CELEBRATION_DELAY, function()
+        if BFH.celebrationToken == token then BFH:ShowCelebration() end
+    end)
+end
+
+-- Cancels a pending or running finale, e.g. when a new sequence starts.
+function BFH:StopCelebration()
+    self.celebrationToken = (self.celebrationToken or 0) + 1
+    self:HideCelebration()
 end
 
 function BFH:GetSoundPath(number)
@@ -369,6 +484,8 @@ function BFH:OnDarkTransformation()
     self:StopPreview()
     self:ClearAll()
     self.dtCastTime = GetTime()
+    -- A combo only counts while every spell is cast at or after its Ready.
+    self.comboOK = true
 
     if self.hasSoulReaper then
         self:ShowStage("SOUL")
@@ -379,6 +496,7 @@ end
 
 function BFH:OnSoulReaper()
     if self.stage ~= "SOUL" then return end
+    if self.phase == "LOADING" then self:MissCombo("Soul Reaper cast early") end
     self:PlayOnUse("SOUL")
     if self.hasBlightfall then
         self:ShowStage("BLIGHT")
@@ -390,10 +508,12 @@ end
 function BFH:OnBlightfall()
     -- Blightfall used while Soul Reaper is still up: drop it instantly.
     if self.stage == "SOUL" then
+        self:MissCombo("Blightfall cast during Soul Reaper")
         self:ClearMain()
         return
     end
     if self.stage ~= "BLIGHT" then return end
+    if self.phase == "LOADING" then self:MissCombo("Blightfall cast early") end
     self:PlayOnUse("BLIGHT")
     if self.db.showPutrefy and self.hasPutrefy then
         self:ShowPutrefy(0.5)
@@ -404,10 +524,13 @@ end
 
 function BFH:OnPutrefy()
     if self.stage ~= "PUTREFY" then return end
-    if not self:IsPutrefyPending() then
-        self:PlayOnUse("PUTREFY")
-    end
-    self:ClearMain()
+    self:CastPutrefy()
+end
+
+function BFH:MissCombo(reason)
+    if not self.comboOK then return end
+    self.comboOK = false
+    self:Debug("combo broken:", reason)
 end
 
 function BFH:HandleSpell(spellID)
@@ -463,16 +586,37 @@ BFH:SetScript("OnEvent", function(self, event, ...)
         local saved = type(BlightfallDB) == "table" and (tonumber(BlightfallDB.schemaVersion) or 0) or 0
         if saved < RESET_BELOW_SCHEMA then
             BlightfallDB = {}
-        elseif saved < 103 then
-            -- 6.2s was the old default for both; move untouched values to
-            -- the new recommendations.
-            if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
-            if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
+        else
+            if saved < 103 then
+                -- 6.2s was the old default for both; move untouched values to
+                -- the new recommendations.
+                if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
+                if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
+            end
+            if saved < 104 then
+                -- readySound became the per-event `sounds` table. Picks that
+                -- were still the old Blizzard defaults fall through to the
+                -- new Majora default instead.
+                local old = BlightfallDB.readySound
+                if type(old) == "table"
+                    and not (old.SOUL == "ready_check" and old.BLIGHT == "raid_warning") then
+                    BlightfallDB.sounds = {
+                        SOUL_READY = old.SOUL or "none",
+                        BLIGHT_READY = old.BLIGHT or "none",
+                        SOUL_END = "none",
+                        BLIGHT_END = "none",
+                        PUTREFY_END = "none",
+                    }
+                end
+                BlightfallDB.readySound = nil
+                BlightfallDB.soundPreset = nil
+            end
         end
         CopyDefaults(self.defaults, BlightfallDB)
         BlightfallDB.schemaVersion = self.SCHEMA
         self.db = BlightfallDB
 
+        self:RefreshSoundState()
         RegisterSharedMedia()
         if self.InitializeDisplay then self:InitializeDisplay() end
         if self.InitializeMinimapButton then self:InitializeMinimapButton() end

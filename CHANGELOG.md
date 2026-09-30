@@ -24,6 +24,13 @@
 - "Only show on mouseover" is disabled while the minimap button is hidden.
 - The window's X button closes it directly instead of going through Blizzard's panel manager.
 
+### Sound presets and Perfect Combo
+- Real sound packs replace the placeholder sounds. **Majora** (Zelda low health / tower) is the default preset; **Bomb**, **Blizzard**, **Subtle** and **Silent** are also included.
+- Sounds are now attached to moments instead of spells: Soul Reaper ready, after Soul Reaper, Blightfall ready, after Blightfall, after Putrefy. Changing any of them switches the preset to Custom.
+- New combo preset **Umamusume: Rider of the Apocalypse**. It plays Combo 1-5 across those five moments, and a clean run ends with the Helios Rap finale: a 528-frame celebration that starts 0.267s after the music, with a blinking PERFECT COMBO caption (shown when the spell-name option is on).
+- The combo is missed if Soul Reaper or Blightfall is cast before its Ready, or if Putrefy is never cast. Casting Putrefy before its card appears is fine. A missed combo still plays every sound, just no finale.
+- Perfect Combo options: turn the finale off (with a warning about how it feels), turn it off in Mythic+ and Mythic raid only, pick its sound, and preview it.
+
 ### Settings
 - New Blizzard-style window with two tabs (General, Style) and scrolling; opened with `/bf` or the minimap button.
 - Style: animation size 1-300% with 1x/2x/3x shortcuts; countdown text and spell name each with font, size, outline, colour, shadow and X/Y offset; editable spell names.
