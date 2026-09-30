@@ -3,11 +3,16 @@ if not BFH then return end
 
 local BUTTON_SIZE = 32
 
+-- Buttons ride a circle slightly wider than the minimap itself, the same way
+-- LibDBIcon and other addons place theirs; sitting exactly on the rim would
+-- tuck this one visibly further in than its neighbours.
+local RIM_OFFSET = 10
+
 local function GetMinimapRadius()
-    if not Minimap then return 80 end
+    if not Minimap then return 70 + RIM_OFFSET end
     local w = Minimap:GetWidth() or 140
     local h = Minimap:GetHeight() or 140
-    return math.max(w, h) * 0.5
+    return math.max(w, h) * 0.5 + RIM_OFFSET
 end
 
 local function PositionButton(button, angle)

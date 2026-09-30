@@ -642,15 +642,12 @@ local function BuildStyle(page)
         function(v) db().celebrationOffInstances = v end)
         :SetPoint("TOPLEFT", combo, "TOPLEFT", 12, combo.y)
     Advance(combo, 36)
-    Dropdown(combo, "Celebration sound", 220, SoundItems,
-        function() return db().celebrationSound end,
-        function(v) db().celebrationSound = v end)
-        :SetPoint("TOPLEFT", combo, "TOPLEFT", 16, combo.y)
+    -- The finale's sound is part of the preset, not something to swap out.
     local celPreview = Button(combo, "Preview celebration", 160, function()
         BFH:PreviewCelebration()
     end)
-    celPreview:SetPoint("TOPLEFT", combo, "TOPLEFT", COL2, combo.y - 16)
-    Advance(combo, 56)
+    celPreview:SetPoint("TOPLEFT", combo, "TOPLEFT", 16, combo.y)
+    Advance(combo, 42)
 
     combo:SetHeight(-combo.y)
     page.comboSection = combo

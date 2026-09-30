@@ -31,7 +31,7 @@
 - One sound section now holds the channel and that channel's volume, with a note that Blizzard only lets an addon set a channel's level rather than one effect's volume.
 - New combo preset **Umamusume: Rider of the Apocalypse**. It plays Combo 1-5 across those five moments, and a clean run ends with the Helios Rap finale: a 528-frame celebration that starts 0.267s after the music, with a blinking PERFECT COMBO caption (shown when the spell-name option is on). The celebration keeps its native 188px art.
 - The combo is missed if Soul Reaper or Blightfall is cast before its Ready, or if Putrefy is never cast. Casting Putrefy before its card appears is fine. A missed combo still plays every sound, just no finale.
-- Perfect Combo options: turn the finale off, turn it off in Mythic+ and Mythic raid only, pick its sound, and preview it.
+- Perfect Combo options: turn the finale off, turn it off in Mythic+ and Mythic raid only, and preview it. Its sound belongs to the preset and is not offered in the pickers.
 
 ### Settings
 - New Blizzard-style window with two tabs (General, Style) and scrolling; opened with `/bf` or the minimap button.

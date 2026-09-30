@@ -139,7 +139,7 @@ BFH.SOUNDS = {
     {key = "combo_3", name = "Combo 3", file = "Sounds\\combo_3.ogg", dur = 0.44},
     {key = "combo_4", name = "Combo 4", file = "Sounds\\combo_4.ogg", dur = 0.67},
     {key = "combo_5", name = "Combo 5", file = "Sounds\\combo_5.ogg", dur = 1.10},
-    {key = "helios_rap", name = "Helios Rap", file = "Sounds\\helios_rap.ogg", dur = 9.13},
+    {key = "helios_rap", name = "Helios Rap", file = "Sounds\\helios_rap.ogg", dur = 9.13, hidden = true},
     {key = "zelda_low_health", name = "Zelda Low Health", file = "Sounds\\zelda_low_health.ogg", dur = 1.63},
     {key = "zelda_tower", name = "Zelda Tower", file = "Sounds\\zelda_tower.ogg", dur = 4.73},
     {key = "zelda_shrine", name = "Zelda Shrine", file = "Sounds\\zelda_shrine.ogg", dur = 3.20},
