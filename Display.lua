@@ -426,7 +426,6 @@ function BFH:UpdateTexts()
     end
     label:SetShown(showLabel and true or false)
 
-    if not loading then main.glow:Hide() end
 end
 
 function BFH:OnDisplayUpdate(elapsed)
@@ -453,18 +452,27 @@ function BFH:OnDisplayUpdate(elapsed)
         self:UpdateTexts()
     end
 
-    if self.phase ~= "LOADING" then return end
-    local remaining = self.stageEnd - GetTime()
-    counter:SetText(self:FormatRemaining(remaining))
+    local loading = self.phase == "LOADING"
+    local remaining = loading and (self.stageEnd - GetTime()) or 0
 
-    -- Optional flash (placeholder effect until the designed one arrives).
-    if self.db.flashEnabled and remaining <= (tonumber(self.db.flashAt) or 4) then
+    -- Optional flash (placeholder effect until the designed one arrives):
+    -- near the end of loading, and/or the whole time Ready/Idle is up.
+    local flash
+    if loading then
+        flash = self.db.flashEnabled and remaining <= (tonumber(self.db.flashAt) or 4)
+    else
+        flash = self.stage and self.db.flashReady
+    end
+    if flash then
         local pulse = 0.5 + 0.5 * math.sin(GetTime() * math.pi * 6)
         main.glow:SetAlpha(0.55 * pulse)
         main.glow:Show()
     else
         main.glow:Hide()
     end
+
+    if not loading then return end
+    counter:SetText(self:FormatRemaining(remaining))
 
     local maxCount = math.min(10, math.floor(self.db.countdownStart or 4))
     local spoken

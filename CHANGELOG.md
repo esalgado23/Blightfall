@@ -8,6 +8,8 @@
 - The sequence is driven only by your casts, starting at Dark Transformation. The addon no longer reads the ghoul's auras, which Midnight hides in combat. Soul Reaper and Blightfall stay in Idle until cast; a new Dark Transformation restarts the sequence.
 - New defaults: Soul Reaper 9s (1-15s), Blightfall 6.2s (1-8s). Putrefy has no timer.
 - Optional flash when N seconds of loading remain (placeholder effect).
+- Optional flash for the whole Ready/Idle phase (Soul Reaper, Blightfall and Putrefy).
+- Soul Reaper has its own Ready animation.
 - Ready sound per spell with presets (placeholder sounds), alongside the spoken countdown.
 
 ### Fixes and tweaks
@@ -18,7 +20,7 @@
 - Soul Reaper now leaves on its own: instantly if you cast Blightfall or Dark Transformation, or with a 0.5s fade-out 15s after Dark Transformation.
 - Countdown and spell name fade in with the animation.
 - Defaults: both timers 6.2s (shown as recommended); countdown in DTM Mono, monochrome, no shadow; spell name in Oldbitz, monochrome, #FCBC31 with #CC4419 shadow.
-- Minimap icon is now the Blightfall orb; window title and minimap tooltip show the full addon name.
+- Minimap icon is now a close-up of the Blightfall orb; window title and minimap tooltip show the full addon name.
 - "Only show on mouseover" is disabled while the minimap button is hidden.
 
 ### Settings

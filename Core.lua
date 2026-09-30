@@ -55,6 +55,7 @@ BFH.defaults = {
     putrefySmall = false,
     flashEnabled = false,
     flashAt = 4,
+    flashReady = false,
 
     -- Style: countdown text (shown while loading)
     counter = {

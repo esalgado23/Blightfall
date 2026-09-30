@@ -482,6 +482,11 @@ local function BuildStyle(page)
         function(v) return v .. "s left" end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
     Advance(page, 52)
+    Checkbox(page, "Flash while Ready / Idle",
+        function() return db().flashReady end,
+        function(v) db().flashReady = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 36)
 
     Header(page, "Countdown text")
     Checkbox(page, "Show countdown while loading",
