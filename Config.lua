@@ -616,13 +616,8 @@ local function BuildStyle(page)
     combo:SetWidth(CONTENT_WIDTH)
     combo.y = 0
 
-    Header(combo, "Combo sounds")
-    EventDropdown(combo, "SOUL_END", 16)
-    EventDropdown(combo, "BLIGHT_END", COL2)
-    Advance(combo, 56)
-    EventDropdown(combo, "PUTREFY_END", 16)
-    Advance(combo, 56)
-
+    -- The three "after" sounds are part of the combo preset itself, so they
+    -- are never offered for editing.
     Header(combo, "Perfect Combo")
     Note(combo, "Cast every spell at or after its Ready and the sequence ends with a celebration.")
     Advance(combo, 32)
