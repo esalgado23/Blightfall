@@ -365,6 +365,7 @@ end
 function BFH:OnDarkTransformation()
     self:StopPreview()
     self:ClearAll()
+    self.dtCastTime = GetTime()
 
     if self.hasSoulReaper then
         self:ShowStage("SOUL")
@@ -384,6 +385,11 @@ function BFH:OnSoulReaper()
 end
 
 function BFH:OnBlightfall()
+    -- Blightfall used while Soul Reaper is still up: drop it instantly.
+    if self.stage == "SOUL" then
+        self:ClearMain()
+        return
+    end
     if self.stage ~= "BLIGHT" then return end
     self:PlayOnUse("BLIGHT")
     if self.db.showPutrefy and self.hasPutrefy then

@@ -8,6 +8,8 @@ local LOADING_FADE = 1.0
 local PUTREFY_FADE = 0.3
 local PREVIEW_IDLE_TIME = 2.0
 local PUTREFY_TIME = 3.0 -- Putrefy leaves on its own if not cast
+local SOUL_TIMEOUT = 15.0 -- Soul Reaper leaves this long after Dark Transformation
+local SOUL_FADE_OUT = 0.5
 
 local PREFIX = {SOUL = "reaper", BLIGHT = "blight"}
 
@@ -82,6 +84,7 @@ function Layer:Play(key, opts)
     self.loop = opts.loop
     self.fadeIn = opts.fadeIn or 0
     self.onDone = opts.onDone
+    self.fadeOutStart = nil
     self.lastFrame = nil
     self.playing = true
     self.glow:Hide()
@@ -124,7 +127,27 @@ function Layer:Update(elapsed)
         end
     end
     self:SetFrame(idx)
-    self.frame:SetAlpha(self.fadeIn > 0 and math.min(1, self.t / self.fadeIn) or 1)
+    local alpha = self.fadeIn > 0 and math.min(1, self.t / self.fadeIn) or 1
+    if self.fadeOutStart then
+        local left = 1 - (GetTime() - self.fadeOutStart) / self.fadeOutDuration
+        if left <= 0 then
+            local done = self.fadeOutDone
+            self.fadeOutDone = nil
+            self:Stop()
+            if done then done() end
+            return
+        end
+        alpha = alpha * left
+    end
+    self.frame:SetAlpha(alpha)
+end
+
+-- Fade from the current opacity to 0, then stop and call onDone.
+function Layer:FadeOut(duration, onDone)
+    if self.fadeOutStart or not self.playing then return end
+    self.fadeOutStart = GetTime()
+    self.fadeOutDuration = duration
+    self.fadeOutDone = onDone
 end
 
 ---------------------------------------------------------------------------
@@ -414,6 +437,11 @@ function BFH:OnDisplayUpdate(elapsed)
 
     if self.preview and self.previewNext and GetTime() >= self.previewNext then
         AdvancePreview()
+    elseif not self.preview and self.stage == "SOUL" and self.dtCastTime
+        and GetTime() >= self.dtCastTime + SOUL_TIMEOUT then
+        self:Debug("Soul Reaper timed out")
+        self.dtCastTime = nil
+        main:FadeOut(SOUL_FADE_OUT, function() BFH:ClearMain() end)
     elseif not self.preview and self.stage == "PUTREFY" and GetTime() >= (self.putrefyExpire or 0) then
         self:Debug("Putrefy timed out")
         self:PlayOnUse("PUTREFY")

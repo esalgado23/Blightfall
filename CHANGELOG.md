@@ -15,6 +15,7 @@
 - Casts with hidden spell IDs are ignored instead of causing errors.
 - New `/bf debug` command prints detected casts to chat.
 - Spell name is anchored to the centre of the animation, like the countdown.
+- Soul Reaper now leaves on its own: instantly if you cast Blightfall or Dark Transformation, or with a 0.5s fade-out 15s after Dark Transformation.
 - Countdown and spell name fade in with the animation.
 - Defaults: both timers 6.2s (shown as recommended); countdown in DTM Mono, monochrome, no shadow; spell name in Oldbitz, monochrome, #FCBC31 with #CC4419 shadow.
 - Minimap icon is now the Blightfall orb; window title and minimap tooltip show the full addon name.
