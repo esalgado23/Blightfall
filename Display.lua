@@ -7,7 +7,7 @@ local CELL = 128
 local LOADING_FADE = 1.0
 local PUTREFY_FADE = 0.3
 local PREVIEW_IDLE_TIME = 2.0
-local PREVIEW_PUTREFY_TIME = 3.0
+local PUTREFY_TIME = 3.0 -- Putrefy leaves on its own if not cast
 
 local PREFIX = {SOUL = "reaper", BLIGHT = "blight"}
 
@@ -232,7 +232,7 @@ function BFH:ApplyDisplaySettings()
 
     ApplyFontString(label, d.label)
     label:ClearAllPoints()
-    label:SetPoint("TOP", display, "BOTTOM", d.label.x or 0, d.label.y or 0)
+    label:SetPoint("CENTER", display, "CENTER", d.label.x or 0, d.label.y or 0)
 
     dragOverlay:SetShown(not d.locked)
     self:UpdateTexts()
@@ -293,11 +293,6 @@ function BFH:EnterIdle()
     self:UpdateTexts()
 end
 
--- Jump straight to Idle (used for Blightfall when DT ends mid-loading).
-function BFH:ForceIdle()
-    if self.phase ~= "IDLE" then self:EnterIdle() end
-end
-
 function BFH:GetPutrefyKey(variant)
     return "putrefy_" .. variant .. (self.db.putrefySmall and "_sml" or "_big")
 end
@@ -307,6 +302,7 @@ function BFH:ShowPutrefy(delay)
     self.putrefyVariant = variants[math.random(#variants)]
     self.stage = "PUTREFY"
     self.phase = "IDLE"
+    self.putrefyExpire = GetTime() + (delay or 0) + PUTREFY_TIME
     main:Play(self:GetPutrefyKey(self.putrefyVariant) .. "_idle", {
         fps = FPS,
         loop = true,
@@ -356,7 +352,7 @@ function BFH:StartPreview(stage)
     self.previewNext = nil
     if stage == "PUTREFY" then
         self:ShowPutrefy(0)
-        self.previewNext = GetTime() + PREVIEW_PUTREFY_TIME
+        self.previewNext = GetTime() + PUTREFY_TIME
     else
         self:ShowStage(stage)
     end
@@ -376,7 +372,7 @@ local function AdvancePreview()
     BFH:PlayOnUse(stage)
     if stage == "PUTREFY" then
         BFH:ShowPutrefy(0.5)
-        BFH.previewNext = GetTime() + 0.5 + PREVIEW_PUTREFY_TIME
+        BFH.previewNext = GetTime() + 0.5 + PUTREFY_TIME
     else
         BFH:ShowStage(stage)
     end
@@ -418,6 +414,11 @@ function BFH:OnDisplayUpdate(elapsed)
 
     if self.preview and self.previewNext and GetTime() >= self.previewNext then
         AdvancePreview()
+    elseif not self.preview and self.stage == "PUTREFY" and GetTime() >= (self.putrefyExpire or 0) then
+        self:Debug("Putrefy timed out")
+        self:PlayOnUse("PUTREFY")
+        self:ClearMain()
+        return
     end
 
     if self.stage == "PUTREFY" and main.playing and not main:IsPending() and not label:IsShown() and self.db.label.show then

@@ -4,16 +4,17 @@
 
 ### Animation redesign
 - The progress bar is replaced by pixel-art animations. Soul Reaper and Blightfall play **Loading** (stretched to the timer, 1s fade-in) -> **Ready** (once) -> **Idle** (loops until cast) -> **OnUse** (0.5s, when cast).
-- **Putrefy** appears 0.5s after Blightfall with a 0.3s fade-in, using one of 6 random card designs, and plays that card's OnUse when cast or when Dark Transformation ends. Optional small cards.
-- Dark Transformation ending now acts immediately (no grace period): Soul Reaper is removed, Blightfall jumps to Idle and stays until cast, Putrefy is only shown while Dark Transformation is up.
+- **Putrefy** appears 0.5s after Blightfall with a 0.3s fade-in, using one of 6 random card designs, and plays that card's OnUse when cast or after 3 seconds. Optional small cards.
+- The sequence is driven only by your casts, starting at Dark Transformation. The addon no longer reads the ghoul's auras, which Midnight hides in combat. Soul Reaper and Blightfall stay in Idle until cast; a new Dark Transformation restarts the sequence.
 - New defaults: Soul Reaper 9s (1-15s), Blightfall 6.2s (1-8s). Putrefy has no timer.
 - Optional flash when N seconds of loading remain (placeholder effect).
 - Ready sound per spell with presets (placeholder sounds), alongside the spoken countdown.
 
 ### Fixes and tweaks
-- Fixed timers disappearing as soon as combat started: hidden aura data in combat is no longer mistaken for Dark Transformation ending. If the aura can't be read, its known expiration time is used instead.
+- Fixed timers disappearing as soon as combat started (caused by reading the ghoul's auras, now removed).
 - Casts with hidden spell IDs are ignored instead of causing errors.
-- New `/bf debug` command prints casts, Dark Transformation checks and combat changes to chat.
+- New `/bf debug` command prints detected casts to chat.
+- Spell name is anchored to the centre of the animation, like the countdown.
 - Countdown and spell name fade in with the animation.
 - Defaults: both timers 6.2s (shown as recommended); countdown in DTM Mono, monochrome, no shadow; spell name in Oldbitz, monochrome, #FCBC31 with #CC4419 shadow.
 - Minimap icon is now the Blightfall orb; window title and minimap tooltip show the full addon name.
