@@ -34,6 +34,8 @@
 - Perfect Combo options: turn the finale off, turn it off in Mythic+ and Mythic raid only, and preview it. Its sound belongs to the preset and is not offered in the pickers.
 
 ### Settings
+- The addon only sets itself up on a Death Knight; on any other class it drops its events at login and does nothing further.
+- Move and Reset position sit in the window header, so they are reachable from both tabs, and the talent line moved down next to the credit.
 - New Blizzard-style window with two tabs (General, Style) and scrolling; opened with `/bf` or the minimap button.
 - Style: animation size 1-300% with 1x/2x/3x shortcuts; countdown text and spell name each with font, size, outline, colour, shadow and X/Y offset; editable spell names.
 - Bundled fonts: Oldbitz and DTM Mono.

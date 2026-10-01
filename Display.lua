@@ -57,7 +57,6 @@ function Layer:SetFrame(i)
     local cols, uv = page[2], page[3]
 
     if self.lastPath ~= page[1] then
-
         self.tex:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
         self.glow:SetTexture(page[1], "CLAMP", "CLAMP", "NEAREST")
         self.lastPath = page[1]
@@ -491,7 +490,6 @@ function BFH:UpdateTexts()
         label:SetText(d.names[self.stage] or self.DEFAULT_NAMES[self.stage] or "")
     end
     label:SetShown(showLabel and true or false)
-
 end
 
 -- Per-frame driver: animations, texts, flash, preview loop and timeouts.
@@ -500,7 +498,6 @@ function BFH:OnDisplayUpdate(elapsed)
     outro:Update(elapsed)
     celebration:Update(elapsed)
     if perfect:IsShown() then
-
         perfect:SetAlpha(0.55 + 0.45 * math.sin(GetTime() * math.pi * 5))
     end
 

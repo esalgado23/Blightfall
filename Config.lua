@@ -366,24 +366,6 @@ end
 local function BuildGeneral(page)
     local db = function() return BFH.db end
 
-    local status = page:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    At(page, status)
-    BFH.talentStatusText = status
-    Advance(page, 30)
-
-    local move = Button(page, "Move", 110, function()
-        BFH:SetLocked(not BFH.db.locked)
-    end)
-    At(page, move)
-    BFH.moveButton = move
-    local resetPos = Button(page, "Reset position", 130, function()
-        BFH.db.point, BFH.db.relativePoint = "CENTER", "CENTER"
-        BFH.db.x, BFH.db.y = 0, 120
-        BFH:ApplyPosition()
-    end)
-    resetPos:SetPoint("LEFT", move, "RIGHT", 8, 0)
-    Advance(page, 36)
-
     Header(page, "Minimap")
     Checkbox(page, "Show minimap button",
         function() return db().showMinimapButton end,
@@ -438,6 +420,11 @@ local function BuildGeneral(page)
     Advance(page, 32)
     Note(page, "Previews loop until you press Stop or close this window. Sounds play on the first loop only.")
     Advance(page, 36)
+
+    local status = page:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    At(page, status)
+    BFH.talentStatusText = status
+    Advance(page, 34)
 
     local credit = page:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     credit:SetText("Blightfall v" .. BFH.VERSION .. "  -  Created by esalgado23")
@@ -670,6 +657,20 @@ function BFH:InitializeConfig()
     end
 
     local inset = f.Inset or f
+
+    local move = Button(f, "Move", 110, function()
+        BFH:SetLocked(not BFH.db.locked)
+    end)
+    move:SetPoint("BOTTOMLEFT", inset, "TOPLEFT", 8, 6)
+    BFH.moveButton = move
+
+    local resetPos = Button(f, "Reset position", 130, function()
+        BFH.db.point, BFH.db.relativePoint = "CENTER", "CENTER"
+        BFH.db.x, BFH.db.y = 0, 120
+        BFH:ApplyPosition()
+    end)
+    resetPos:SetPoint("LEFT", move, "RIGHT", 8, 0)
+
     local general = CreatePage(inset)
     local style = CreatePage(inset)
     BuildGeneral(general.page)

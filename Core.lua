@@ -578,39 +578,46 @@ function BFH:ResetSequence()
     if not self.preview then self:ClearAll() end
 end
 
-BFH:RegisterEvent("ADDON_LOADED")
-BFH:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-BFH:RegisterEvent("PLAYER_ENTERING_WORLD")
-BFH:RegisterEvent("PLAYER_TALENT_UPDATE")
-BFH:RegisterEvent("SPELLS_CHANGED")
-BFH:RegisterEvent("TRAIT_CONFIG_UPDATED")
+-- Nothing is set up until login, where the class is known; on anything but a
+-- Death Knight the addon drops its events and does no further work.
+BFH:RegisterEvent("PLAYER_LOGIN")
 
 BFH:SetScript("OnEvent", function(self, event, ...)
-    if event == "ADDON_LOADED" then
-        local name = ...
-        if name ~= ADDON_NAME then return end
+    if event == "PLAYER_LOGIN" then
+        if select(2, UnitClass("player")) ~= "DEATHKNIGHT" then
+            self:UnregisterAllEvents()
+            self:SetScript("OnEvent", nil)
+            SLASH_BLIGHTFALL1 = "/blightfall"
+            SLASH_BLIGHTFALL2 = "/bf"
+            SlashCmdList.BLIGHTFALL = function()
+                print("|cff9f1cffBlightfall|r only runs on Death Knights.")
+            end
+            return
+        end
+
+        self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+        self:RegisterEvent("PLAYER_ENTERING_WORLD")
+        self:RegisterEvent("PLAYER_TALENT_UPDATE")
+        self:RegisterEvent("SPELLS_CHANGED")
+        self:RegisterEvent("TRAIT_CONFIG_UPDATED")
 
         local saved = type(BlightfallDB) == "table" and (tonumber(BlightfallDB.schemaVersion) or 0) or 0
         if saved < RESET_BELOW_SCHEMA then
             BlightfallDB = {}
         else
             if saved < 103 then
-
                 if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
                 if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
             end
             if saved < 106 then
-
                 BlightfallDB.cardBurn = BlightfallDB.reaperBurn
                 BlightfallDB.reaperBurn = nil
             end
             if saved < 105 then
-
                 BlightfallDB.sounds = nil
                 BlightfallDB.comboMode = nil
             end
             if saved < 104 then
-
                 local old = BlightfallDB.readySound
                 if type(old) == "table"
                     and not (old.SOUL == "ready_check" and old.BLIGHT == "raid_warning") then
