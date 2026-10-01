@@ -5,7 +5,7 @@ ns.AnimData = {
     reaper_ready = {frames = 60, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\reaper_ready_1", 8, 0.125}}},
     reaper_idle = {frames = 60, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\reaper_idle_1", 8, 0.125}}},
     reaper_onuse = {frames = 15, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\reaper_onuse_1", 4, 0.25}}},
-    blight_loading = {frames = 150, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\blight_loading_1", 13, 0.0625}}},
+    blight_loading = {frames = 137, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\blight_loading_1", 12, 0.0625}}},
     blight_ready = {frames = 60, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\blight_ready_1", 8, 0.125}}},
     blight_idle = {frames = 60, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\blight_idle_1", 8, 0.125}}},
     blight_onuse = {frames = 15, cell = 128, perPage = 256, pages = {{"Interface\\AddOns\\Blightfall\\Media\\Anim\\blight_onuse_1", 4, 0.25}}},

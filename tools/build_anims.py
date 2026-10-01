@@ -26,16 +26,16 @@ ADDON_PATH = "Interface\\AddOns\\Blightfall\\Media\\Anim\\"
 ANIMS = {}
 
 
-def add(key, src, frames, cols=10, cell=128, out=None):
-    """out defaults to the source cell size, i.e. no rescaling."""
-    ANIMS[key] = dict(src=src, frames=frames, cols=cols, cell=cell, out=out or cell)
+def add(key, src, cols=10, cell=128, out=None):
+    """Frame counts are read from the sheet; out defaults to the cell size."""
+    ANIMS[key] = dict(src=src, cols=cols, cell=cell, out=out or cell)
 
 
 for stage, folder, name in (("reaper", "reaper", "Reaper"), ("blight", "blightfall", "Blightfall")):
-    add(f"{stage}_loading", f"{folder}/{name}_Loading.png", 150)
-    add(f"{stage}_ready", f"{folder}/{name}_Ready.png", 60)
-    add(f"{stage}_idle", f"{folder}/{name}_idle.png", 60)
-    add(f"{stage}_onuse", f"{folder}/{name}_Onuse.png", 15)
+    add(f"{stage}_loading", f"{folder}/{name}_Loading.png")
+    add(f"{stage}_ready", f"{folder}/{name}_Ready.png")
+    add(f"{stage}_idle", f"{folder}/{name}_idle.png")
+    add(f"{stage}_onuse", f"{folder}/{name}_Onuse.png")
 
 PUTREFY_VARIANTS = ["blod", "blod-prf", "frst", "frst-prf", "uhly", "uhly-prf"]
 for variant in PUTREFY_VARIANTS:
@@ -43,11 +43,11 @@ for variant in PUTREFY_VARIANTS:
     for size in ("big", "sml"):
         stem = f"{color}-{style}-{size}" if style else f"{color}-{size}"
         key = f"putrefy_{variant.replace('-', '_')}_{size}"
-        add(key + "_idle", f"putrefy/{stem}-idle.png", 60)
-        add(key + "_onuse", f"putrefy/{stem}-Onuse.png", 15)
+        add(key + "_idle", f"putrefy/{stem}-idle.png")
+        add(key + "_onuse", f"putrefy/{stem}-Onuse.png")
 
 # Perfect-combo celebration, kept at its native 188px cells.
-add("celebration", "celebration/helios_rap.png", 528, cols=24, cell=188)
+add("celebration", "celebration/helios_rap.png", cols=24, cell=188)
 
 
 def next_pot(v):
@@ -61,8 +61,18 @@ def build(key, spec):
     sheet = Image.open(os.path.join(SRC, spec["src"])).convert("RGBA")
     cell, out, cols = spec["cell"], spec["out"], spec["cols"]
 
+    # The sheet's grid may have spare cells at the end, so the real length is
+    # the last one that still has something drawn in it.
+    total = (sheet.size[0] // cell) * (sheet.size[1] // cell)
+    count = 0
+    for i in range(total):
+        x, y = (i % cols) * cell, (i // cols) * cell
+        if sheet.crop((x, y, x + cell, y + cell)).getbbox():
+            count = i + 1
+    spec["frames"] = count
+
     frames = []
-    for i in range(spec["frames"]):
+    for i in range(count):
         x, y = (i % cols) * cell, (i // cols) * cell
         frame = sheet.crop((x, y, x + cell, y + cell))
         if out != cell:
