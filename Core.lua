@@ -271,9 +271,10 @@ function BFH:PlayEvent(event)
     if key and key ~= "none" then self:PlaySoundEntry(key) end
 end
 
--- Random burning-card sound as a Putrefy card is used.
+-- Random burning-card sound as a Putrefy card is used. A combo preset shows
+-- the switch as on but covers that moment with its own sound, so it stays out.
 function BFH:PlayCardBurn()
-    if not self.cardBurn then return end
+    if self.comboMode or not self.cardBurn then return end
     local list = self.CARD_BURN
     self:PlaySoundEntry(list[math.random(#list)])
 end
