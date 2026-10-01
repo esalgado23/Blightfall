@@ -27,7 +27,16 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 
 ## Installation
 
-Install with the CurseForge app, or download the latest zip from Releases and extract the `Blightfall` folder into `World of Warcraft\_retail_\Interface\AddOns\`.
+Download **Blightfall-vX.Y.Z.zip** from the [latest release](https://github.com/esalgado23/Blightfall/releases/latest) and extract it into:
+
+```
+World of Warcraft\_retail_\Interface\AddOns```
+
+You should end up with `AddOns\Blightfall\Blightfall.toc`. Restart WoW, then type `/bf`.
+
+> Use the release zip, not the green **Code → Download ZIP** button. The animations and sounds are built when a release is made and are not stored in the repository, so a source download will not run.
+
+It is also on the CurseForge app, under *Blightfall - The Ultimate Death Knight Experience*.
 
 ## Building the media (maintainers)
 
