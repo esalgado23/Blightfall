@@ -30,7 +30,8 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 Download **Blightfall-vX.Y.Z.zip** from the [latest release](https://github.com/esalgado23/Blightfall/releases/latest) and extract it into:
 
 ```
-World of Warcraft\_retail_\Interface\AddOns```
+World of Warcraft\_retail_\Interface\AddOns
+```
 
 You should end up with `AddOns\Blightfall\Blightfall.toc`. Restart WoW, then type `/bf`.
 
