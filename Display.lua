@@ -7,6 +7,7 @@ local CELL = 128
 local LOADING_FADE = 1.0
 local PUTREFY_FADE = 0.15
 local PREVIEW_IDLE_TIME = 2.0
+local TEST_TAIL = 0.5
 local PUTREFY_TIME = 5.0
 local SOUL_TIMEOUT = 15.0
 local SOUL_FADE_OUT = 0.5
@@ -77,7 +78,7 @@ function Layer:Play(key, opts)
     opts = opts or {}
     self.key = key
     self.data = data
-    self.t = -(opts.delay or 0)
+    self.t = opts.startAt or -(opts.delay or 0)
     self.frameTime = opts.duration and (opts.duration / data.frames) or (1 / (opts.fps or FPS))
     self.loop = opts.loop
     self.fadeIn = opts.fadeIn or 0
@@ -297,8 +298,10 @@ function BFH:GetStageDuration(stage)
     return Clamp(v, limits[1], limits[2])
 end
 
--- Previews only play sound on their first loop.
+-- Previews are silent when the settings window opened them by itself, and
+-- otherwise only make noise on their first loop.
 local function AudioAllowed()
+    if BFH.previewSilent then return false end
     return not BFH.preview or BFH.previewCycle == 1
 end
 
@@ -333,7 +336,9 @@ function BFH:EnterIdle()
     if not PREFIX[stage] then return end
     self.phase = "IDLE"
     main:Play(PREFIX[stage] .. "_idle", {fps = FPS, loop = true})
-    if self.preview then self.previewNext = GetTime() + PREVIEW_IDLE_TIME end
+    if self.preview and not self.previewTest then
+        self.previewNext = GetTime() + PREVIEW_IDLE_TIME
+    end
     self:UpdateTexts()
 end
 
@@ -433,12 +438,14 @@ function BFH:ClearAll()
     self:StopCelebration()
 end
 
-function BFH:StartPreview(stage)
+function BFH:StartPreview(stage, silent)
     if not display then return end
     self:ClearAll()
     self.preview = stage
     self.previewCycle = 1
     self.previewNext = nil
+    self.previewTest = nil
+    self.previewSilent = silent and true or false
     if stage == "PUTREFY" then
         self:ShowPutrefy(0)
         self.previewNext = GetTime() + PUTREFY_FADE + PUTREFY_TIME
@@ -451,7 +458,33 @@ function BFH:StopPreview()
     if not self.preview then return end
     self.preview = nil
     self.previewNext = nil
+    self.previewTest = nil
+    self.previewSilent = nil
     self:ClearAll()
+end
+
+-- Shows what a Ready sound is like in context: the tail of the loading
+-- animation, then Ready with its sound, then the idle loop.
+function BFH:TestWithAnimation(stage)
+    if not display or not PREFIX[stage] then return end
+    self:StopPreview()
+    self.preview = stage
+    self.previewCycle = 1
+    self.previewNext = nil
+    self.previewTest = true
+    self.previewSilent = false
+
+    local duration = self:GetStageDuration(stage)
+    self.stage = stage
+    self.phase = "LOADING"
+    self.stageEnd = GetTime() + TEST_TAIL
+    self.lastSpoken = nil
+    main:Play(PREFIX[stage] .. "_loading", {
+        duration = duration,
+        startAt = math.max(0, duration - TEST_TAIL),
+        onDone = function() BFH:EnterReady() end,
+    })
+    self:UpdateTexts()
 end
 
 -- Restarts the preview loop with its use animation.

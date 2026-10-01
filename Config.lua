@@ -305,10 +305,34 @@ local function SoundItems()
     return out
 end
 
+-- Greys a widget out and stops it responding.
+local function SetEnabled(w, on)
+    if w.dropdown then
+        w.dropdown:SetEnabled(on)
+    elseif w.SetEnabled then
+        w:SetEnabled(on)
+    end
+    if w.label then
+        w.label:SetFontObject(on and "GameFontHighlight" or "GameFontDisable")
+    elseif w.title then
+        w.title:SetFontObject(on and "GameFontNormal" or "GameFontDisable")
+    end
+end
+
+-- Wraps a widget so each refresh re-applies whether the preset allows editing.
+local function LockedBy(w, allowed)
+    local base = w.Refresh
+    w.Refresh = function(self)
+        if base then base(self) end
+        SetEnabled(self, allowed())
+    end
+    if not base then Track(w) end
+    return w
+end
+
 local function PresetItems()
     local out = {}
     for _, p in ipairs(BFH.SOUND_PRESETS) do out[#out + 1] = {text = p.name, value = p.key} end
-    out[#out + 1] = {text = "Custom", value = "custom"}
     return out
 end
 
@@ -499,36 +523,53 @@ local function BuildStyle(page)
 
     Header(page, "Sounds")
     Dropdown(page, "Preset", 340, PresetItems,
-        function() return BFH:GetMatchingPreset() end,
-        function(v) if v ~= "custom" then BFH:ApplySoundPreset(v) end end)
+        function() return db().soundPreset end,
+        function(v) BFH:ApplySoundPreset(v) end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
     Advance(page, 56)
 
-    -- Sound picker for one moment of the sequence.
-    local function EventDropdown(parent, event, x)
-        local dd = Dropdown(parent, BFH.SOUND_EVENT_NAMES[event], 220, SoundItems,
-            function() return db().sounds[event] end,
+    local function SoundsEditable() return BFH:SoundsEditable() end
+
+    -- One row: the picker, a button to hear the sound, and one that plays it
+    -- where it actually lands in the sequence.
+    local function SoundRow(event, stage)
+        local dd = Dropdown(page, BFH.SOUND_EVENT_NAMES[event], 220, SoundItems,
+            function() return BFH.sounds[event] end,
             function(v)
-                db().sounds[event] = v
+                db().custom.sounds[event] = v
+                BFH:RefreshSoundState()
                 BFH:PlaySoundEntry(v)
             end)
-        dd:SetPoint("TOPLEFT", parent, "TOPLEFT", x, parent.y)
-        return dd
+        dd:SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+        LockedBy(dd, SoundsEditable)
+
+        local listen = Button(page, "Listen", 80, function()
+            BFH:PlaySoundEntry(BFH.sounds[event])
+        end)
+        listen:SetPoint("LEFT", dd, "RIGHT", 10, -5)
+
+        local test = Button(page, "Test with animation", 150, function()
+            BFH:TestWithAnimation(stage)
+        end)
+        test:SetPoint("LEFT", listen, "RIGHT", 6, 0)
+        Advance(page, 52)
     end
 
-    EventDropdown(page, "SOUL_READY", 16)
-    EventDropdown(page, "BLIGHT_READY", COL2)
-    Advance(page, 56)
-    Note(page, "Changing a sound switches the preset to Custom.")
-    Advance(page, 30)
+    SoundRow("SOUL_READY", "SOUL")
+    SoundRow("BLIGHT_READY", "BLIGHT")
 
-    Checkbox(page, "Burning card sound when a Putrefy card is used",
-        function() return db().cardBurn end,
-        function(v) db().cardBurn = v end)
+    LockedBy(Checkbox(page, "SFX when Putrefy is used in a rotation",
+        function() return BFH.cardBurn end,
+        function(v)
+            if BFH:SoundsEditable() then
+                db().custom.cardBurn = v
+            else
+                db().majoraCardBurn = v
+            end
+            BFH:RefreshSoundState()
+        end), function() return BFH:CardBurnEditable() end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    Advance(page, 26)
-    Note(page, "Plays as the card burns, one of four sounds picked at random. Combo presets use their own audio instead.", 34)
-    Advance(page, 32)
+    Advance(page, 38)
 
     Dropdown(page, "Sound channel", 220, CHANNELS,
         function() return db().soundChannel end,
@@ -701,7 +742,7 @@ function BFH:InitializeConfig()
     f:SetScript("OnShow", function()
         BFH:RefreshConfig()
 
-        if not BFH.stage then BFH:StartPreview("SOUL") end
+        if not BFH.stage then BFH:StartPreview("SOUL", true) end
     end)
     f:SetScript("OnHide", function()
         BFH:StopPreview()

@@ -34,6 +34,10 @@
 - Perfect Combo options: turn the finale off, turn it off in Mythic+ and Mythic raid only, and preview it. Its sound belongs to the preset and is not offered in the pickers.
 
 ### Settings
+- **Custom mode** is the new default preset. It starts with Majora's sounds and keeps whatever you pick, separately from the other presets.
+- Presets now lock what they own: Majora and Umamusume fix their sounds, Majora still lets you turn the Putrefy SFX off (remembered on its own), and Umamusume keeps it locked on.
+- Each sound picker gained a **Listen** button and a **Test with animation** button, which plays the last half second of loading, then Ready with its sound, then the idle loop.
+- Opening the settings window still shows an animation, but silently; only the preview and test buttons make noise.
 - The addon only sets itself up on a Death Knight; on any other class it drops its events at login and does nothing further.
 - Move and Reset position sit in the window header, so they are reachable from both tabs, and the talent line moved down next to the credit.
 - New Blizzard-style window with two tabs (General, Style) and scrolling; opened with `/bf` or the minimap button.

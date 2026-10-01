@@ -5,7 +5,7 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 106
+BFH.SCHEMA = 107
 
 local RESET_BELOW_SCHEMA = 102
 
@@ -91,16 +91,15 @@ BFH.defaults = {
         PUTREFY = "Putrefy",
     },
 
-    soundPreset = "majora",
-    comboMode = false,
-    sounds = {
-        SOUL_READY = "zelda_low_health",
-        SOUL_END = "none",
-        BLIGHT_READY = "zelda_tower",
-        BLIGHT_END = "none",
-        PUTREFY_END = "none",
+    soundPreset = "custom",
+    custom = {
+        sounds = {
+            SOUL_READY = "zelda_low_health",
+            BLIGHT_READY = "zelda_tower",
+        },
+        cardBurn = true,
     },
-    cardBurn = true,
+    majoraCardBurn = true,
     celebrationEnabled = true,
     celebrationSound = "helios_rap",
     celebrationOffInstances = false,
@@ -111,8 +110,6 @@ BFH.defaults = {
     ttsVolume = 80,
     ttsRate = 0,
 }
-
-BFH.SOUND_EVENTS = {"SOUL_READY", "SOUL_END", "BLIGHT_READY", "BLIGHT_END", "PUTREFY_END"}
 
 BFH.SOUND_EVENT_NAMES = {
     SOUL_READY = "Soul Reaper ready",
@@ -162,6 +159,7 @@ BFH.SOUND_BY_KEY = {}
 for _, entry in ipairs(BFH.SOUNDS) do BFH.SOUND_BY_KEY[entry.key] = entry end
 
 BFH.SOUND_PRESETS = {
+    {key = "custom", name = "Custom mode"},
     {key = "majora", name = "Majora", sounds = {
         SOUL_READY = "zelda_low_health", BLIGHT_READY = "zelda_tower"}},
     {key = "uma", name = "Umamusume: Rider of the Apocalypse", combo = true, sounds = {
@@ -269,50 +267,51 @@ end
 
 -- Plays the sound attached to one moment of the sequence.
 function BFH:PlayEvent(event)
-    local key = self.db.sounds[event]
+    local key = self.sounds and self.sounds[event]
     if key and key ~= "none" then self:PlaySoundEntry(key) end
 end
 
--- Random burning-card sound; combo presets bring their own audio.
+-- Random burning-card sound as a Putrefy card is used.
 function BFH:PlayCardBurn()
-    if self.comboMode or not self.db.cardBurn then return end
+    if not self.cardBurn then return end
     local list = self.CARD_BURN
     self:PlaySoundEntry(list[math.random(#list)])
 end
 
--- Copies a preset's sounds into the settings.
 function BFH:ApplySoundPreset(presetKey)
-    local p = self:GetPreset(presetKey)
-    if not p then return end
-    self.db.soundPreset = p.key
-    for _, event in ipairs(self.SOUND_EVENTS) do
-        self.db.sounds[event] = p.sounds[event] or "none"
-    end
-    self.db.comboMode = p.combo and true or false
+    if not self:GetPreset(presetKey) then return end
+    self.db.soundPreset = presetKey
     self:RefreshSoundState()
 end
 
--- Mirrors combo mode onto the addon table so checks stay cheap.
+-- Resolves the active preset into plain fields, so the sequence never has to
+-- work out which sounds apply while it is running. Only Custom mode stores its
+-- own picks; Majora keeps just its SFX switch and Umamusume is fixed.
 function BFH:RefreshSoundState()
-    self.comboMode = self.db.comboMode and true or false
+    local key = self.db.soundPreset or "custom"
+    local preset = self:GetPreset(key) or self:GetPreset("custom")
+    self.comboMode = (preset.combo and true) or false
+
+    if key == "custom" then
+        self.sounds = self.db.custom.sounds
+        self.cardBurn = self.db.custom.cardBurn and true or false
+    elseif self.comboMode then
+        self.sounds = preset.sounds
+        self.cardBurn = true
+    else
+        self.sounds = preset.sounds or {}
+        self.cardBurn = self.db.majoraCardBurn and true or false
+    end
 end
 
--- Which preset the current sounds still match, or "custom".
-function BFH:GetMatchingPreset()
-    local combo = self.db.comboMode and true or false
-    for _, p in ipairs(self.SOUND_PRESETS) do
-        if (p.combo and true or false) == combo then
-            local match = true
-            for _, event in ipairs(self.SOUND_EVENTS) do
-                if self.db.sounds[event] ~= (p.sounds[event] or "none") then
-                    match = false
-                    break
-                end
-            end
-            if match then return p.key end
-        end
-    end
-    return "custom"
+-- Whether the sound pickers can be edited under the active preset.
+function BFH:SoundsEditable()
+    return (self.db.soundPreset or "custom") == "custom"
+end
+
+-- Whether the Putrefy SFX switch can be edited under the active preset.
+function BFH:CardBurnEditable()
+    return not self.comboMode
 end
 
 -- True only in Mythic Keystone dungeons and Mythic raid.
@@ -339,7 +338,7 @@ function BFH:OnOnUseFinished(stage)
     end
     if not self:CanCelebrate() then return end
 
-    local entry = self.SOUND_BY_KEY[self.db.sounds.PUTREFY_END]
+    local entry = self.SOUND_BY_KEY[self.sounds.PUTREFY_END]
     local wait = (entry and entry.dur) or 0
     self.celebrationToken = (self.celebrationToken or 0) + 1
     local token = self.celebrationToken
@@ -590,7 +589,7 @@ BFH:SetScript("OnEvent", function(self, event, ...)
             SLASH_BLIGHTFALL1 = "/blightfall"
             SLASH_BLIGHTFALL2 = "/bf"
             SlashCmdList.BLIGHTFALL = function()
-                print("|cff9f1cffBlightfall|r only runs on Death Knights.")
+                print("|cff9f1cffBlightfall|r does not run on second-class classes.")
             end
             return
         end
@@ -608,6 +607,14 @@ BFH:SetScript("OnEvent", function(self, event, ...)
             if saved < 103 then
                 if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
                 if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
+            end
+            if saved < 107 then
+
+                BlightfallDB.sounds = nil
+                BlightfallDB.cardBurn = nil
+                BlightfallDB.comboMode = nil
+                BlightfallDB.custom = nil
+                BlightfallDB.soundPreset = nil
             end
             if saved < 106 then
                 BlightfallDB.cardBurn = BlightfallDB.reaperBurn
