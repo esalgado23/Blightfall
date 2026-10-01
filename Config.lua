@@ -388,8 +388,9 @@ local function BuildGeneral(page)
     Note(page, "Take your trinket's effect duration into account; your timers should line up with it too.")
     Advance(page, 28)
     Note(page, string.format("Recommended: %.1fs", BFH.RECOMMENDED.SOUL), 16, 300)
-    Note(page, string.format("Recommended: %.1fs", BFH.RECOMMENDED.BLIGHT), COL2, 300)
-    Advance(page, 18)
+    Note(page, string.format("Recommended: %.1fs. Time will adjust if you are late on Soul Reaper.",
+        BFH.RECOMMENDED.BLIGHT), COL2, 320)
+    Advance(page, 32)
     Slider(page, "Soul Reaper after Dark Transformation", 1, 15, 0.1,
         function() return db().soulDelay end,
         function(v) db().soulDelay = v end,

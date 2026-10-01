@@ -9,9 +9,9 @@ Blightfall follows the Unholy rotation **Dark Transformation → Soul Reaper →
 ### The sequence
 
 - Casting Dark Transformation starts Soul Reaper's **loading** animation, stretched to the timer you choose. It then plays **ready** once and loops **idle** until you cast, and casting plays its **use** animation.
-- Soul Reaper hands over to Blightfall the same way. Blightfall hands over to a **Putrefy card**, one of six designs picked at random, which leaves after five seconds if you do not use it. There is a smaller set of cards if the big ones crowd your screen.
+- Soul Reaper hands over to Blightfall the same way. Blightfall hands over to a **Putrefy card**, which leaves after five seconds if you do not use it. There is a smaller size if the cards crowd your screen.
 - Soul Reaper clears itself fifteen seconds after Dark Transformation, or at once if you cast Blightfall.
-- Waiting on Soul Reaper eats into Blightfall: every second it loops idle is a second off Blightfall's window, since Dark Transformation is running down either way. Casting during the ready animation still counts as on time.
+- Waiting on Soul Reaper eats into Blightfall: every second you are late is a second off Blightfall's window, since Dark Transformation is running down either way. There is half a second of grace once Soul Reaper shows as ready.
 - Recommended timings are 9.5s for Soul Reaper and 6s for Blightfall, both adjustable. Keep your trinket in mind: the timers should line up with it.
 - Everything is driven by your own casts, so it keeps working in combat, and it only tracks the spells you actually have talented.
 

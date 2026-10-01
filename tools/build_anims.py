@@ -50,6 +50,20 @@ for variant in PUTREFY_VARIANTS:
 add("celebration", "celebration/helios_rap.png", cols=24, cell=188)
 
 
+# The square tile WoW shows beside the addon in its list.
+LOGO_SRC = os.path.join(ROOT, "art", "logo.png")
+LOGO_OUT = os.path.join(ROOT, "Media", "Logo.tga")
+LOGO_SIZE = 128
+
+
+def build_logo():
+    if not os.path.exists(LOGO_SRC):
+        return
+    img = Image.open(LOGO_SRC).convert("RGBA")
+    img.resize((LOGO_SIZE, LOGO_SIZE), Image.LANCZOS).save(LOGO_OUT)
+    print(f"Logo written to {LOGO_OUT}")
+
+
 def next_pot(v):
     p = 1
     while p < v:
@@ -121,6 +135,7 @@ def main():
     lines.append("ns.PutrefyVariants = {" + ", ".join(f'"{v.replace("-", "_")}"' for v in PUTREFY_VARIANTS) + "}")
     with open(LUA, "w", encoding="utf-8", newline="\r\n") as fh:
         fh.write("\n".join(lines) + "\n")
+    build_logo()
     print(f"Built {len(ANIMS)} animations, {total / 1024 / 1024:.0f} MB of textures")
 
 
