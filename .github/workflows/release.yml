@@ -26,4 +26,8 @@ jobs:
       - run: python tools/build_anims.py
       - run: python tools/build_sounds.py
 
+      # The packager drops every file git does not track, so the generated
+      # media has to be staged before it runs. This is never committed.
+      - run: git add -f Media
+
       - uses: BigWigsMods/packager@v2
