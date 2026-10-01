@@ -507,9 +507,15 @@ end
 function BFH:OnSoulReaper()
     if self.stage ~= "SOUL" then return end
     if self.phase == "LOADING" then self:MissCombo("Soul Reaper cast early") end
+
+    -- Every second spent waiting on Soul Reaper is a second less of Dark
+    -- Transformation left, so Blightfall inherits a window that much shorter.
+    local late = self:WaitedInIdle()
     self:PlayOnUse("SOUL")
     if self.hasBlightfall then
-        self:ShowStage("BLIGHT")
+        local window = self:GetStageDuration("BLIGHT") - late
+        self:Debug("Blightfall window:", string.format("%.1fs", window), "after idling", string.format("%.1fs", late))
+        self:ShowStage("BLIGHT", window)
     else
         self:ClearMain()
     end

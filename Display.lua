@@ -8,6 +8,7 @@ local LOADING_FADE = 1.0
 local PUTREFY_FADE = 0.15
 local PREVIEW_IDLE_TIME = 2.0
 local TEST_TAIL = 0.5
+local MIN_LOADING = 0.3
 local PUTREFY_TIME = 5.0
 local SOUL_TIMEOUT = 15.0
 local SOUL_FADE_OUT = 0.5
@@ -306,18 +307,35 @@ local function AudioAllowed()
 end
 
 -- Starts a spell's loading animation and countdown.
-function BFH:ShowStage(stage)
+-- duration overrides the configured timer, which is how a late cast hands the
+-- next spell a shorter window.
+function BFH:ShowStage(stage, duration)
+    duration = duration or self:GetStageDuration(stage)
     self.stage = stage
-    self.phase = "LOADING"
-    local duration = self:GetStageDuration(stage)
-    self.stageEnd = GetTime() + duration
+    self.idleSince = nil
     self.lastSpoken = nil
+
+    if duration < MIN_LOADING then
+        self.stageEnd = GetTime()
+        self:EnterReady()
+        return
+    end
+
+    self.phase = "LOADING"
+    self.stageEnd = GetTime() + duration
     main:Play(PREFIX[stage] .. "_loading", {
         duration = duration,
-        fadeIn = LOADING_FADE,
+        fadeIn = math.min(LOADING_FADE, duration * 0.4),
         onDone = function() BFH:EnterReady() end,
     })
     self:UpdateTexts()
+end
+
+-- How long the current spell has been looping idle, waiting to be cast.
+-- Casting during the ready animation still counts as on time.
+function BFH:WaitedInIdle()
+    if self.phase ~= "IDLE" or not self.idleSince then return 0 end
+    return math.max(0, GetTime() - self.idleSince)
 end
 
 -- Loading finished: play the ready animation and its sound.
@@ -335,6 +353,7 @@ function BFH:EnterIdle()
     local stage = self.stage
     if not PREFIX[stage] then return end
     self.phase = "IDLE"
+    self.idleSince = GetTime()
     main:Play(PREFIX[stage] .. "_idle", {fps = FPS, loop = true})
     if self.preview and not self.previewTest then
         self.previewNext = GetTime() + PREVIEW_IDLE_TIME
@@ -421,6 +440,7 @@ function BFH:ClearMain()
     self:StopTTS()
     self.stage = nil
     self.phase = nil
+    self.idleSince = nil
     self.lastSpoken = nil
     if main then main:Stop() end
     self:UpdateTexts()
