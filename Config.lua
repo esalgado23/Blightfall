@@ -96,7 +96,6 @@ local function Slider(parent, text, minV, maxV, step, getter, setter, format)
     s:SetMinMaxValues(minV, maxV)
     s:SetValueStep(step)
     s:SetObeyStepOnDrag(true)
-    s:EnableMouseWheel(true)
 
     local function Show(v)
         value:SetText(format and format(v) or tostring(v))
@@ -108,9 +107,6 @@ local function Slider(parent, text, minV, maxV, step, getter, setter, format)
         if self.refreshing then return end
         setter(v)
         BFH:ApplyDisplaySettings()
-    end)
-    s:SetScript("OnMouseWheel", function(self, delta)
-        self:SetValue(math.max(minV, math.min(maxV, self:GetValue() + delta * step)))
     end)
 
     wrap.slider = s
@@ -239,9 +235,7 @@ local function NameEditor(parent, text, stage)
     end
 
     local function Commit()
-        local v = strtrim(box:GetText() or "")
-        if v == "" then v = BFH.DEFAULT_NAMES[stage] end
-        BFH.db.names[stage] = v
+        BFH.db.names[stage] = strtrim(box:GetText() or "")
         box:ClearFocus()
         SetEditing(false)
         Changed()
@@ -390,25 +384,6 @@ end
 local function BuildGeneral(page)
     local db = function() return BFH.db end
 
-    Header(page, "Minimap")
-    Checkbox(page, "Show minimap button",
-        function() return db().showMinimapButton end,
-        function(v) db().showMinimapButton = v; BFH:UpdateMinimapButton() end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    local hover = Checkbox(page, "Only show on mouseover",
-        function() return db().minimapMouseoverOnly end,
-        function(v) db().minimapMouseoverOnly = v; BFH:UpdateMinimapButton() end)
-    hover:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
-
-    local baseRefresh = hover.Refresh
-    hover.Refresh = function(self)
-        baseRefresh(self)
-        local enabled = db().showMinimapButton ~= false
-        self:SetEnabled(enabled)
-        self.label:SetFontObject(enabled and "GameFontHighlight" or "GameFontDisable")
-    end
-    Advance(page, 36)
-
     Header(page, "Timers")
     Note(page, "Take your trinket's effect duration into account; your timers should line up with it too.")
     Advance(page, 28)
@@ -432,6 +407,25 @@ local function BuildGeneral(page)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
     Advance(page, 36)
 
+    Header(page, "Minimap")
+    Checkbox(page, "Show minimap button",
+        function() return db().showMinimapButton end,
+        function(v) db().showMinimapButton = v; BFH:UpdateMinimapButton() end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    local hover = Checkbox(page, "Only show on mouseover",
+        function() return db().minimapMouseoverOnly end,
+        function(v) db().minimapMouseoverOnly = v; BFH:UpdateMinimapButton() end)
+    hover:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+
+    local baseRefresh = hover.Refresh
+    hover.Refresh = function(self)
+        baseRefresh(self)
+        local enabled = db().showMinimapButton ~= false
+        self:SetEnabled(enabled)
+        self.label:SetFontObject(enabled and "GameFontHighlight" or "GameFontDisable")
+    end
+    Advance(page, 36)
+
     Header(page, "Preview")
     local p1 = Button(page, "Soul Reaper", 130, function() BFH:StartPreview("SOUL") end)
     At(page, p1)
@@ -445,15 +439,19 @@ local function BuildGeneral(page)
     Note(page, "Previews loop until you press Stop or close this window. Sounds play on the first loop only.")
     Advance(page, 36)
 
-    local status = page:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    At(page, status)
-    BFH.talentStatusText = status
-    Advance(page, 34)
+    local footer = CreateFrame("Frame", nil, page)
+    footer:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 16, 12)
+    footer:SetSize(CONTENT_WIDTH - 32, 38)
 
-    local credit = page:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    local status = footer:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    status:SetPoint("TOPLEFT")
+    BFH.talentStatusText = status
+
+    local credit = footer:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    credit:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, -8)
     credit:SetText("Blightfall v" .. BFH.VERSION .. "  -  Created by esalgado23")
-    At(page, credit)
-    Advance(page, 24)
+
+    page.footerHeight = 60
 end
 
 local function BuildStyle(page)
@@ -493,33 +491,6 @@ local function BuildStyle(page)
         function(v) db().flashReady = v end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
     Advance(page, 36)
-
-    Header(page, "Countdown text")
-    Checkbox(page, "Show countdown while loading",
-        function() return db().counter.show end,
-        function(v) db().counter.show = v end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    Dropdown(page, "Precision", 220,
-        {{text = "Whole seconds", value = 0}, {text = "1 decimal", value = 1}, {text = "2 decimals", value = 2}},
-        function() return db().counter.precision end,
-        function(v) db().counter.precision = v end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
-    Advance(page, 56)
-    TextStyleBlock(page, function() return db().counter end, 200)
-
-    Header(page, "Spell name")
-    Checkbox(page, "Show spell name under the animation",
-        function() return db().label.show end,
-        function(v) db().label.show = v end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    Advance(page, 36)
-    for _, stage in ipairs({"SOUL", "BLIGHT", "PUTREFY"}) do
-        NameEditor(page, BFH.DEFAULT_NAMES[stage], stage)
-            :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
-        Advance(page, 32)
-    end
-    Advance(page, 8)
-    TextStyleBlock(page, function() return db().label end, 200)
 
     Header(page, "Sounds")
     Dropdown(page, "Preset", 340, PresetItems,
@@ -584,6 +555,19 @@ local function BuildStyle(page)
     Note(page, "Blizzard only lets an addon set a channel's level, not one effect's volume, so this slider is WoW's own volume for the channel above and affects the rest of the game too.")
     Advance(page, 46)
 
+    Header(page, "Countdown text")
+    Checkbox(page, "Show countdown while loading",
+        function() return db().counter.show end,
+        function(v) db().counter.show = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Dropdown(page, "Precision", 220,
+        {{text = "Whole seconds", value = 0}, {text = "1 decimal", value = 1}, {text = "2 decimals", value = 2}},
+        function() return db().counter.precision end,
+        function(v) db().counter.precision = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y)
+    Advance(page, 56)
+    TextStyleBlock(page, function() return db().counter end, 200)
+
     Header(page, "Spoken countdown")
     Checkbox(page, "Spoken countdown",
         function() return db().soundEnabled end,
@@ -622,6 +606,20 @@ local function BuildStyle(page)
     local test = Button(page, "Test voice", 110, function() BFH:SpeakText("3, 2, 1") end)
     test:SetPoint("TOPLEFT", page, "TOPLEFT", COL2, page.y - 16)
     Advance(page, 60)
+
+    Header(page, "Spell name")
+    Checkbox(page, "Show spell name under the animation",
+        function() return db().label.show end,
+        function(v) db().label.show = v end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
+    Advance(page, 36)
+    for _, stage in ipairs({"SOUL", "BLIGHT", "PUTREFY"}) do
+        NameEditor(page, BFH.DEFAULT_NAMES[stage], stage)
+            :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+        Advance(page, 32)
+    end
+    Advance(page, 8)
+    TextStyleBlock(page, function() return db().label end, 200)
 
     local combo = CreateFrame("Frame", nil, page)
     combo:SetPoint("TOPLEFT", page, "TOPLEFT", 0, page.y)
@@ -716,7 +714,9 @@ function BFH:InitializeConfig()
     local style = CreatePage(inset)
     BuildGeneral(general.page)
     BuildStyle(style.page)
-    general.page:SetHeight(-general.page.y + 10)
+    local viewport = general:GetHeight()
+    if not viewport or viewport <= 0 then viewport = HEIGHT - 120 end
+    general.page:SetHeight(math.max(-general.page.y + 10 + (general.page.footerHeight or 0), viewport))
     style.page:SetHeight(-style.page.y + 10)
     style.page.baseHeight = -style.page.y + 10
     f.stylePage = style.page

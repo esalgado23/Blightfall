@@ -34,6 +34,11 @@
 - Perfect Combo options: turn the finale off, turn it off in Mythic+ and Mythic raid only, and preview it. Its sound belongs to the preset and is not offered in the pickers.
 
 ### Settings
+- General is ordered Timers, Minimap, Preview, with the talent line and the credit pinned to the bottom of the tab.
+- Style is ordered Animation, Sounds, Countdown text, Spoken countdown, Spell name.
+- Sliders ignore the mouse wheel, so scrolling a page no longer nudges whichever one is under the cursor.
+- Leaving a spell name empty is now kept instead of being reset.
+- The countdown shows whole seconds by default.
 - Sounds no longer land late: the leading silence baked into most of the clips (up to 1.4s on one) is trimmed when the addon is built, so a sound starts the moment the spell is ready.
 - **Custom mode** is the new default preset. It starts with Majora's sounds and keeps whatever you pick, separately from the other presets.
 - Presets now lock what they own: Majora and Umamusume fix their sounds, Majora still lets you turn the Putrefy SFX off (remembered on its own), and Umamusume shows it locked on while covering that moment with its own sound.

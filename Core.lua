@@ -5,7 +5,7 @@ BFH.ns = ns
 
 BFH.VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 if BFH.VERSION:find("@", 1, true) then BFH.VERSION = "dev" end
-BFH.SCHEMA = 107
+BFH.SCHEMA = 108
 
 local RESET_BELOW_SCHEMA = 102
 
@@ -70,7 +70,7 @@ BFH.defaults = {
         shadowColor = {0, 0, 0, 1},
         x = 0,
         y = 0,
-        precision = 1,
+        precision = 0,
     },
 
     label = {
@@ -609,6 +609,12 @@ BFH:SetScript("OnEvent", function(self, event, ...)
             if saved < 103 then
                 if BlightfallDB.soulDelay == 6.2 then BlightfallDB.soulDelay = 9.5 end
                 if BlightfallDB.blightDelay == 6.2 then BlightfallDB.blightDelay = 6.0 end
+            end
+            if saved < 108 then
+
+                if BlightfallDB.counter and BlightfallDB.counter.precision == 1 then
+                    BlightfallDB.counter.precision = 0
+                end
             end
             if saved < 107 then
 
