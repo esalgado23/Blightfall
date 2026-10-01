@@ -8,6 +8,7 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 
 - Loading animation stretched to your chosen timer, then Ready/Idle until you cast, then an OnUse effect.
 - Putrefy reminder animations after Blightfall; it leaves after 5 seconds if not cast.
+- **Self-correcting timers.** If a mechanic or a boss move makes you cast Soul Reaper late, Blightfall's timer shortens to match instead of running its full length and costing you damage.
 - Talent aware. Driven only by your own casts, so it keeps working in combat.
 - Optional countdown text and spell name with custom fonts, colours, shadow and position.
 - Sound presets for each moment of the sequence, plus spoken countdown (voice files or WoW text-to-speech).
