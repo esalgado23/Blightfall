@@ -27,9 +27,9 @@
 ### Sound presets and Perfect Combo
 - Real sound packs replace the placeholder sounds. The presets are **Majora** (Zelda low health / tower, the default) and **Umamusume: Rider of the Apocalypse**, plus Custom. The Isaac, card, bomb and Zelda sounds are all selectable; only sounds that ship with the addon can be picked, so Blizzard's own sound kits were dropped.
 - Using a Putrefy card plays one of four burning-card sounds at random as it burns away. It has an on/off switch, is on by default, and stays quiet under a combo preset.
-- Sounds are attached to moments instead of spells. Every preset uses Soul Reaper ready and Blightfall ready; the three "after" moments and the whole Perfect Combo block belong to combo presets and are hidden otherwise. Changing any sound switches the preset to Custom.
+- Sounds are attached to moments instead of spells. Every preset uses Soul Reaper ready and Blightfall ready; the three "used" moments and the whole Perfect Combo block belong to combo presets and are hidden otherwise. Changing any sound switches the preset to Custom.
 - One sound section now holds the channel and that channel's volume, with a note that Blizzard only lets an addon set a channel's level rather than one effect's volume.
-- New combo preset **Umamusume: Rider of the Apocalypse**. It plays Combo 1-5 across those five moments, and a clean run ends with the Helios Rap finale: a 528-frame celebration that starts 0.267s after the music, with a blinking PERFECT COMBO caption (shown when the spell-name option is on). The celebration keeps its native 188px art.
+- New combo preset **Umamusume: Rider of the Apocalypse**. It plays Combo 1-5 across those five moments, each landing as its animation starts, and a clean run ends with the Helios Rap finale: a 528-frame celebration that starts 0.267s after the music, with a blinking PERFECT COMBO caption (shown when the spell-name option is on). The celebration keeps its native 188px art.
 - The combo is missed if Soul Reaper or Blightfall is cast before its Ready, or if Putrefy is never cast. Casting Putrefy before its card appears is fine. A missed combo still plays every sound, just no finale.
 - Perfect Combo options: turn the finale off, turn it off in Mythic+ and Mythic raid only, and preview it. Its sound belongs to the preset and is not offered in the pickers.
 

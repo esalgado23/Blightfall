@@ -113,10 +113,10 @@ BFH.defaults = {
 
 BFH.SOUND_EVENT_NAMES = {
     SOUL_READY = "Soul Reaper ready",
-    SOUL_END = "After Soul Reaper",
+    SOUL_END = "Soul Reaper used",
     BLIGHT_READY = "Blightfall ready",
-    BLIGHT_END = "After Blightfall",
-    PUTREFY_END = "After Putrefy",
+    BLIGHT_END = "Blightfall used",
+    PUTREFY_END = "Putrefy used",
 }
 
 BFH.SOUNDS = {
@@ -327,8 +327,9 @@ function BFH:CanCelebrate()
     return true
 end
 
--- Chains the combo sound after a use animation, and the finale after Putrefy.
-function BFH:OnOnUseFinished(stage)
+-- Runs as a use animation starts: combo presets sound off here, and Putrefy
+-- opens the run of sounds that ends in the finale.
+function BFH:OnOnUseStarted(stage)
     if not self.comboMode or self.preview then return end
     self:PlayEvent(stage .. "_END")
 

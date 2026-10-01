@@ -377,13 +377,8 @@ function BFH:PlayOnUse(stage)
         key = PREFIX[stage] .. "_onuse"
     end
     if stage == "PUTREFY" and AudioAllowed() then self:PlayCardBurn() end
-    outro:Play(key, {
-        fps = FPS,
-        onDone = function()
-            outro:Stop()
-            BFH:OnOnUseFinished(stage)
-        end,
-    })
+    self:OnOnUseStarted(stage)
+    outro:Play(key, {fps = FPS, onDone = function() outro:Stop() end})
 end
 
 -- Putrefy cast, waiting out the delay if the card has not appeared yet.
