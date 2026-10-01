@@ -28,9 +28,13 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 
 Install with the CurseForge app, or download the latest zip from Releases and extract the `Blightfall` folder into `World of Warcraft\_retail_\Interface\AddOns\`.
 
-## Building the animations (maintainers)
+## Building the media (maintainers)
 
-Source sprite sheets live in `art/src`. Run `python tools/build_anims.py` (needs Pillow) to generate `Media/Anim/*.tga` and `AnimData.lua`. The textures are not committed; the release workflow builds them.
+Everything under `Media/` is generated from `art/` and is not committed; the release workflow builds it.
+
+- `python tools/build_anims.py` (needs Pillow) turns the sprite sheets in `art/src` into `Media/Anim/*.tga` and `AnimData.lua`.
+- `python tools/build_sounds.py` (needs soundfile) copies `art/sounds` into `Media/Sounds`, trimming any leading silence so a sound lands the moment it is meant to.
+- `python tools/check.py` (needs luaparser) syntax-checks the Lua and confirms the media it references exists.
 
 ## Releasing (maintainers)
 
