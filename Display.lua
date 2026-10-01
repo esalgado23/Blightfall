@@ -602,6 +602,8 @@ function BFH:OnDisplayUpdate(elapsed)
     end
     if spoken and self.lastSpoken ~= spoken then
         self.lastSpoken = spoken
-        if AudioAllowed() then self:PlayCountdown(spoken) end
+        -- A sound test is about the ready sound, so the spoken countdown that
+        -- would land in the same half second stays quiet.
+        if AudioAllowed() and not self.previewTest then self:PlayCountdown(spoken) end
     end
 end
