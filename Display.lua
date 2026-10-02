@@ -34,6 +34,8 @@ Layer.__index = Layer
 -- One flipbook layer: a frame and the texture showing a single frame.
 local function NewLayer(parent, levelOffset, freeSize)
     local l = setmetatable({}, Layer)
+    l.parent = parent
+    l.freeSize = freeSize
     l.frame = CreateFrame("Frame", nil, parent)
     if not freeSize then l.frame:SetAllPoints(parent) end
     l.frame:SetFrameLevel(parent:GetFrameLevel() + levelOffset)
@@ -88,10 +90,34 @@ function Layer:Play(key, opts)
     self.fadeOutStart = nil
     self.lastFrame = nil
     self.playing = true
+    self:Fit()
     self.glow:Hide()
     self:SetFrame(0)
     self.frame:SetAlpha(self.t < 0 and 0 or (self.fadeIn > 0 and 0 or 1))
     self.frame:Show()
+end
+
+-- Sheets drawn on a smaller cell (the XS cards) show at their native pixel
+-- size, so the layer shrinks to the cell's share of the 128px display.
+function Layer:Fit()
+    if self.freeSize then return end
+    local ratio = self.data and math.min(1, self.data.cell / CELL) or 1
+    if ratio == self.ratio then return end
+    self.ratio = ratio
+    self.frame:ClearAllPoints()
+    if ratio == 1 then
+        self.frame:SetAllPoints(self.parent)
+    else
+        self.frame:SetPoint("CENTER", self.parent, "CENTER")
+    end
+    self:Resize()
+end
+
+function Layer:Resize()
+    if self.ratio and self.ratio < 1 then
+        local w = self.parent:GetWidth() * self.ratio
+        self.frame:SetSize(w, w)
+    end
 end
 
 function Layer:Stop()
@@ -236,7 +262,7 @@ function BFH:PreloadTextures()
     holder:SetSize(1, 1)
     holder:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
     holder:SetAlpha(0)
-    local size = self.db.putrefySmall and "_sml_" or "_big_"
+    local size = "_" .. self:GetPutrefySize() .. "_"
     for key, data in pairs(ns.AnimData) do
         if not key:find("^putrefy") or key:find(size, 1, true) then
             for _, page in ipairs(data.pages) do
@@ -262,6 +288,8 @@ function BFH:ApplyDisplaySettings()
     local d = self.db
     local size = CELL * Clamp(d.scale, 1, 300) / 100
     display:SetSize(size, size)
+    main:Resize()
+    outro:Resize()
     self:ApplyPosition()
 
     ApplyFontString(counter, d.counter)
@@ -362,9 +390,15 @@ function BFH:EnterIdle()
     self:UpdateTexts()
 end
 
+-- Chosen Putrefy card size: "big", "sml" or "xs".
+function BFH:GetPutrefySize()
+    local s = self.db.putrefySize
+    return (s == "sml" or s == "xs") and s or "big"
+end
+
 -- Animation key for a Putrefy card variant at the chosen size.
 function BFH:GetPutrefyKey(variant)
-    return "putrefy_" .. variant .. (self.db.putrefySmall and "_sml" or "_big")
+    return "putrefy_" .. variant .. "_" .. self:GetPutrefySize()
 end
 
 -- Shows a random Putrefy card after an optional delay.

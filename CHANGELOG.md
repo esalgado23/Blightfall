@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Putrefy animation style** is now a dropdown: **Normal**, **Small** or **Mini (simplified)**. Mini is a new, much smaller card that also drops some of the detail. The old "Small Putrefy cards" checkbox moves over to the matching choice.
+- Refreshed the Blood and Frost Perfect-style Putrefy cards at Normal and Small size.
+
 ## v1.0.1
 
 - **Self-correcting timers.** If a mechanic or a boss move makes you cast Soul Reaper late, Blightfall's timer shortens to match instead of running its full length and costing you damage. A 1.2 second grace keeps a slightly late cast on time, and if no time is left Blightfall opens on ready.

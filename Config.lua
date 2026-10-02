@@ -5,6 +5,12 @@ local WIDTH, HEIGHT = 780, 560
 local CONTENT_WIDTH = WIDTH - 70
 local COL2 = 370
 
+local PUTREFY_SIZES = {
+    {text = "Normal", value = "big"},
+    {text = "Small", value = "sml"},
+    {text = "Mini (simplified)", value = "xs"},
+}
+
 local controls = {}
 
 -- Registers a widget so RefreshConfig can update it.
@@ -472,11 +478,11 @@ local function BuildStyle(page)
     x3:SetPoint("LEFT", x2, "RIGHT", 4, 0)
     Advance(page, 52)
 
-    Checkbox(page, "Small Putrefy cards",
-        function() return db().putrefySmall end,
-        function(v) db().putrefySmall = v; BFH:PreloadTextures() end)
-        :SetPoint("TOPLEFT", page, "TOPLEFT", 12, page.y)
-    Advance(page, 34)
+    Dropdown(page, "Putrefy animation style", 220, PUTREFY_SIZES,
+        function() return BFH:GetPutrefySize() end,
+        function(v) db().putrefySize = v; BFH:PreloadTextures() end)
+        :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
+    Advance(page, 56)
     Checkbox(page, "Flash near the end of loading",
         function() return db().flashEnabled end,
         function(v) db().flashEnabled = v end)

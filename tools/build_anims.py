@@ -40,11 +40,12 @@ for stage, folder, name in (("reaper", "reaper", "Reaper"), ("blight", "blightfa
 PUTREFY_VARIANTS = ["blod", "blod-prf", "frst", "frst-prf", "uhly", "uhly-prf"]
 for variant in PUTREFY_VARIANTS:
     color, _, style = variant.partition("-")
-    for size in ("big", "sml"):
+    for size in ("big", "sml", "xs"):
         stem = f"{color}-{style}-{size}" if style else f"{color}-{size}"
         key = f"putrefy_{variant.replace('-', '_')}_{size}"
-        add(key + "_idle", f"putrefy/{stem}-idle.png")
-        add(key + "_onuse", f"putrefy/{stem}-Onuse.png")
+        cell = 80 if size == "xs" else 128
+        add(key + "_idle", f"putrefy/{stem}-idle.png", cell=cell)
+        add(key + "_onuse", f"putrefy/{stem}-Onuse.png", cell=cell)
 
 # Perfect-combo celebration, kept at its native 188px cells.
 add("celebration", "celebration/helios_rap.png", cols=24, cell=188)
