@@ -6,8 +6,13 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 
 ## Features
 
+![Soul Reaper and Blightfall animations](docs/reaper-blightfall.gif)
+
 - Loading animation stretched to your chosen timer, then Ready/Idle until you cast, then an OnUse effect.
-- Putrefy reminder animations after Blightfall; it leaves after 5 seconds if not cast.
+- Putrefy reminder animations after Blightfall; it leaves after 5 seconds if not cast. Pick Normal, Small or Mini (simplified) card size in the settings.
+
+  ![Putrefy card variations](docs/putrefy-cards.gif)
+
 - **Self-correcting timers.** If a mechanic or a boss move makes you cast Soul Reaper late, Blightfall's timer shortens to match instead of running its full length and costing you damage.
 - Talent aware. Driven only by your own casts, so it keeps working in combat.
 - Optional countdown text and spell name with custom fonts, colours, shadow and position.
@@ -27,6 +32,12 @@ Tracks the **Dark Transformation → Soul Reaper → Blightfall → Putrefy** se
 
 ## Installation
 
+### CurseForge (recommended)
+
+You can download and update Blightfall directly from [CurseForge](https://www.curseforge.com/wow/addons/blightfall-the-ultimate-death-knight-experience), or from the CurseForge app by searching for *Blightfall - The Ultimate Death Knight Experience*. The app keeps it up to date for you.
+
+### Manual install
+
 Download **Blightfall-vX.Y.Z.zip** from the [latest release](https://github.com/esalgado23/Blightfall/releases/latest) and extract it into:
 
 ```
@@ -36,8 +47,6 @@ World of Warcraft\_retail_\Interface\AddOns
 You should end up with `AddOns\Blightfall\Blightfall.toc`. Restart WoW, then type `/bf`.
 
 > Use the release zip, not the green **Code → Download ZIP** button. The animations and sounds are built when a release is made and are not stored in the repository, so a source download will not run.
-
-It is also on the CurseForge app, under *Blightfall - The Ultimate Death Knight Experience*.
 
 ## Building the media (maintainers)
 

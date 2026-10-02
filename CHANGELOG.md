@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.1.0
 
 - **Putrefy animation style** is now a dropdown: **Normal**, **Small** or **Mini (simplified)**. Mini is a new, much smaller card that also drops some of the detail. The old "Small Putrefy cards" checkbox moves over to the matching choice.
 - Refreshed the Blood and Frost Perfect-style Putrefy cards at Normal and Small size.

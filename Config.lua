@@ -478,7 +478,7 @@ local function BuildStyle(page)
     x3:SetPoint("LEFT", x2, "RIGHT", 4, 0)
     Advance(page, 52)
 
-    Dropdown(page, "Putrefy animation style", 220, PUTREFY_SIZES,
+    Dropdown(page, "Putrefy animation style (changes the card size)", 220, PUTREFY_SIZES,
         function() return BFH:GetPutrefySize() end,
         function(v) db().putrefySize = v; BFH:PreloadTextures() end)
         :SetPoint("TOPLEFT", page, "TOPLEFT", 16, page.y)
