@@ -504,9 +504,20 @@ function BFH:OnDarkTransformation()
     end
 end
 
+-- A spell left waiting this long after it showed ready no longer counts as a perfect combo.
+local COMBO_LATE_LIMIT = 3.0
+
+function BFH:CheckComboLate(spellName)
+    if not self.readyAt then return end
+    if GetTime() - self.readyAt > COMBO_LATE_LIMIT then
+        self:MissCombo(spellName .. " cast over " .. COMBO_LATE_LIMIT .. "s after ready")
+    end
+end
+
 function BFH:OnSoulReaper()
     if self.stage ~= "SOUL" then return end
     if self.phase == "LOADING" then self:MissCombo("Soul Reaper cast early") end
+    self:CheckComboLate("Soul Reaper")
 
     -- Every second spent waiting on Soul Reaper is a second less of Dark
     -- Transformation left, so Blightfall inherits a window that much shorter.
@@ -531,6 +542,7 @@ function BFH:OnBlightfall()
     end
     if self.stage ~= "BLIGHT" then return end
     if self.phase == "LOADING" then self:MissCombo("Blightfall cast early") end
+    self:CheckComboLate("Blightfall")
     self:PlayOnUse("BLIGHT")
     if self.db.showPutrefy and self.hasPutrefy then
         self:ShowPutrefy(0.5)
@@ -541,6 +553,9 @@ end
 
 function BFH:OnPutrefy()
     if self.stage ~= "PUTREFY" then return end
+    if self.putrefyExpire and GetTime() > self.putrefyExpire then
+        self:MissCombo("Putrefy cast after its card expired")
+    end
     self:CastPutrefy()
 end
 

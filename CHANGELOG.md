@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.1.1
+
+- **Perfect Combo is stricter.** If Soul Reaper or Blightfall sits ready for more than 3 seconds before you cast it, the run no longer counts as a Perfect Combo and the finale is skipped. Putrefy only breaks it if cast after its card has expired.
+- Added a **Need support? Join our discord!** link in the settings window footer.
+
 ## v1.1.0
 
 - **Putrefy animation style** is now a dropdown: **Normal**, **Small** or **Mini (simplified)**. Mini is a new, much smaller card that also drops some of the detail. The old "Small Putrefy cards" checkbox moves over to the matching choice.

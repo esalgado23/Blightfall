@@ -458,6 +458,53 @@ local function BuildGeneral(page)
     credit:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, -8)
     credit:SetText("Blightfall v" .. BFH.VERSION .. "  -  Created by esalgado23")
 
+    local DISCORD_URL = "https://discord.gg/NScsxbF5t9"
+    StaticPopupDialogs["BLIGHTFALL_DISCORD"] = {
+        text = "Press Ctrl+C to copy the Discord invite link, then paste it in your browser.",
+        button1 = CLOSE,
+        hasEditBox = true,
+        editBoxWidth = 260,
+        OnShow = function(self)
+            local box = self.editBox or self.EditBox
+            box:SetText(DISCORD_URL)
+            box:HighlightText()
+            box:SetFocus()
+        end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+        EditBoxOnTextChanged = function(self)
+            if self:GetText() ~= DISCORD_URL then
+                self:SetText(DISCORD_URL)
+                self:HighlightText()
+            end
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+    }
+
+    local link = CreateFrame("Button", nil, footer)
+    local linkText = link:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    linkText:SetPoint("LEFT")
+    linkText:SetText("Need support? Join our discord!")
+    link:SetPoint("LEFT", credit, "RIGHT", 16, 0)
+    link:SetSize(linkText:GetStringWidth(), linkText:GetStringHeight())
+    local underline = link:CreateTexture(nil, "ARTWORK")
+    underline:SetHeight(1)
+    underline:SetPoint("BOTTOMLEFT", linkText, "BOTTOMLEFT", 0, -1)
+    underline:SetPoint("BOTTOMRIGHT", linkText, "BOTTOMRIGHT", 0, -1)
+    underline:Hide()
+    linkText:SetTextColor(0x56 / 255, 0x62 / 255, 0xF6 / 255)
+    underline:SetColorTexture(0x8E / 255, 0x96 / 255, 0xFF / 255)
+    link:SetScript("OnEnter", function()
+        linkText:SetTextColor(0x8E / 255, 0x96 / 255, 0xFF / 255)
+        underline:Show()
+    end)
+    link:SetScript("OnLeave", function()
+        linkText:SetTextColor(0x56 / 255, 0x62 / 255, 0xF6 / 255)
+        underline:Hide()
+    end)
+    link:SetScript("OnClick", function() StaticPopup_Show("BLIGHTFALL_DISCORD") end)
+
     page.footerHeight = 60
 end
 
